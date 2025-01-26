@@ -1,8 +1,7 @@
 from ctypes import windll, byref, c_ubyte
 from ctypes.wintypes import RECT, HWND, POINT
-import win32api, win32con, win32gui
+import win32con, win32gui
 import cv2
-import numpy as np
 from numpy import uint8, frombuffer
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
@@ -23,6 +22,7 @@ def do_left_mouse_move_to( handle, x, y):
 # ---------------------- 坐标转换增强函数 ----------------------
 def get_scaling_factor(handle):
     """获取窗口缩放比例（处理高DPI）"""
+    
     try:
         # Windows 10+ 方法
         dpi = windll.user32.GetDpiForWindow(handle)
@@ -52,28 +52,36 @@ def get_window_handle(name):
 
 # ---------------------- 截图函数（保持原样）----------------------
 def capture_image_png_once(handle: HWND):
+    # 获取窗口客户区的大小
     r = RECT()
-    windll.user32.GetClientRect(handle, byref(r))
-    width, height = r.right, r.bottom
+    windll.user32.GetClientRect(handle, byref(r))  # 获取指定窗口句柄的客户区大小
+    width, height = r.right, r.bottom  # 客户区宽度和高度
 
-    dc = windll.user32.GetDC(handle)
-    cdc = windll.gdi32.CreateCompatibleDC(dc)
-    bitmap = windll.gdi32.CreateCompatibleBitmap(dc, width, height)
-    windll.gdi32.SelectObject(cdc, bitmap)
+    # 创建设备上下文
+    dc = windll.user32.GetDC(handle)  # 获取窗口的设备上下文
+    cdc = windll.gdi32.CreateCompatibleDC(dc)  # 创建一个与给定设备兼容的内存设备上下文
+    bitmap = windll.gdi32.CreateCompatibleBitmap(dc, width, height)  # 创建兼容位图
+    windll.gdi32.SelectObject(cdc, bitmap)  # 将位图选入到内存设备上下文中，准备绘图
 
+    # 执行位块传输，将窗口客户区的内容复制到内存设备上下文中的位图
     windll.gdi32.BitBlt(cdc, 0, 0, width, height, dc, 0, 0, 0x00CC0020)
 
-    total_bytes = width * height * 4
-    buffer = bytearray(total_bytes)
-    byte_array = c_ubyte * total_bytes
+    # 准备缓冲区，用于接收位图的像素数据
+    total_bytes = width * height * 4  # 计算总字节数，每个像素4字节（RGBA）
+    buffer = bytearray(total_bytes)  # 创建字节数组作为缓冲区
+    byte_array = c_ubyte * total_bytes  # 定义C类型数组类型
+
+    # 从位图中获取像素数据到缓冲区
     windll.gdi32.GetBitmapBits(bitmap, total_bytes, byte_array.from_buffer(buffer))
 
-    windll.gdi32.DeleteObject(bitmap)
-    windll.gdi32.DeleteObject(cdc)
-    windll.user32.ReleaseDC(handle, dc)
+    # 清理资源
+    windll.gdi32.DeleteObject(bitmap)  # 删除位图对象
+    windll.gdi32.DeleteObject(cdc)  # 删除内存设备上下文
+    windll.user32.ReleaseDC(handle, dc)  # 释放窗口的设备上下文
 
+    # 将缓冲区数据转换为numpy数组，并重塑为图像的形状 (高度,宽度,[B G R A四通道])
     image = frombuffer(buffer, dtype=uint8).reshape(height, width, 4)
-    return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+    return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
 
 # ---------------------- 图像匹配函数（增加可视化）----------------------
 def match_template(source_img, template_path, match_threshold=0.8):
@@ -100,87 +108,68 @@ def match_template(source_img, template_path, match_threshold=0.8):
     
     return center, marked_img
 
+def restore_window_if_minimized(handle) -> bool:
+    """
+    :param handle: 句柄
+    :return: 如果是最小化, 并恢复至激活窗口的底层, 则返回True, 否则返回False.
+    """
 
-    
-    
-    
-    
+    # 检查窗口是否最小化
+    if win32gui.IsIconic(handle):
+        # 恢复窗口（但不会将其置于最前面）
+        win32gui.ShowWindow(handle, win32con.SW_RESTORE)
+
+        # 将窗口置于Z序的底部，但不改变活动状态
+        win32gui.SetWindowPos(handle, win32con.HWND_BOTTOM, 0, 0, 0, 0,
+                            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+        return True
+    return False
+
+
+def apply_dpi_scaling(x,y,scale_factor=1.0):
+    """
+    对坐标应用 DPI 缩放，并返回缩放后的坐标。
+
+    参数:
+        x (int): x 坐标
+        y (int): y 坐标
+        scale_factor (float): 缩放比，默认为1.0
+
+    返回:
+        scaled_x,scaled_y 
+    """
+
+    scaled_x = int(x * scale_factor)
+    scaled_y = int(y * scale_factor)
+    return scaled_x,scaled_y
 
 
 
+def test():
+    # 获取窗口信息
+    handle1 = get_window_handle('美食大战老鼠')
+    handle = win32gui.FindWindowEx(handle1, None, "TabContentWnd", "")
+    handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
+    handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
+    handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
+    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
+    
+    restore_window_if_minimized(handle1)
+    scale_factor = get_scaling_factor(handle1)
+    print(f"检测到缩放比例: {scale_factor:.1f}x")
+    
+    # 截图
+    img = capture_image_png_once(handle)
+    
+    # 图像匹配
+    target_pos, result_img = match_template(img, "1.png", 0.8)
+    
+    # 应用缩放
+    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1])
+    
+    # 执行点击操作
+    do_left_mouse_click(handle, scaled_x, scaled_y)
+    
 # # ---------------------- 主程序 ----------------------
-# if __name__ == "__main__":
-#     try:
-#         # 获取窗口信息
-#         # handle = get_window_handle('美食大战老鼠')
-#         # handle = win32gui.FindWindowEx(handle, None, "TabContentWnd", "")
-#         # handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
-#         # handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
-#         # handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
-#         # handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-        
-#         handle=get_window_handle("新建文本文档.txt - 记事本")
-#         handle = win32gui.FindWindowEx(handle, None, "Edit", "")
-        
-#         scale_factor = get_scaling_factor(handle)
-#         print(f"检测到缩放比例: {scale_factor:.1f}x")
-
-#         # 获取窗口位置（用于调试）
-#         win_rect = win32gui.GetWindowRect(handle)
-#         print(f"窗口位置: {win_rect}")
-
-#         # 截图
-#         img = capture_image_png_once(handle)
-        
-#         # 图像匹配
-#         target_pos, result_img = match_template(img, "1.png", 0.8)
-#         cv2.imshow("匹配结果", result_img)
-#         cv2.waitKey(0)
-#         cv2.destroyAllWindows()
-        
-#         if target_pos:
-#             # 应用DPI缩放
-#             scaled_x = int(target_pos[0] * scale_factor)
-#             scaled_y = int(target_pos[1] * scale_factor)
-#             print(f"原始坐标: {target_pos} → 缩放后坐标: ({scaled_x}, {scaled_y})")
-
-#             # 执行点击操作（增加移动动作）
-#             do_left_mouse_move_to(handle, scaled_x, scaled_y)
-#             do_left_mouse_click(handle, scaled_x, scaled_y)
-            
-#             # 验证点击位置
-#             cv2.circle(result_img, (target_pos[0], target_pos[1]), 10, (255,0,0), 2)
-#             cv2.imwrite('click_verify.png', result_img)
-#             print("点击位置已保存为 click_verify.png")
-#         else:
-#             print("未找到目标")
-            
-#     except Exception as e:
-#         print(f"错误：{str(e)}")
-#         # 保存错误截图用于调试
-#         if 'img' in locals():
-#             cv2.imwrite('error_screenshot.png', img)
-
-
-
-
-
-# 测试点击
-handle=get_window_handle("美食大战老鼠")
-handle = win32gui.FindWindowEx(handle, None, "TabContentWnd", "")
-handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")  
-handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
-handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
-handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-# handle=get_window_handle("新建文本文档.txt - 记事本")
-# handle = win32gui.FindWindowEx(handle, None, "Edit", "")
-
-print(handle)
-
-do_left_mouse_click(handle,500, 300)
-
-
-
-
-
-
+if __name__ == "__main__":
+    test()
