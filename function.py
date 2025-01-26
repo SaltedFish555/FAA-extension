@@ -48,6 +48,11 @@ def get_window_handle(name):
         if handles:
             return handles[0]
         raise Exception(f"未找到标题为 '{name}' 的窗口")
+    handle = win32gui.FindWindowEx(handle, None, "TabContentWnd", "")
+    handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
+    handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
+    handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
+    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
     return handle
 
 # ---------------------- 截图函数（保持原样）----------------------
@@ -145,17 +150,14 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def test():
-    # 获取窗口信息
-    handle1 = get_window_handle('美食大战老鼠')
-    handle = win32gui.FindWindowEx(handle1, None, "TabContentWnd", "")
-    handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
-    handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
-    handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
-    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
+def match_and_click(handle,img_path:str,test:bool=False):
+    '''匹配图片并进行点击'''
     
-    restore_window_if_minimized(handle1)
-    scale_factor = get_scaling_factor(handle1)
+    # 激活窗口
+    restore_window_if_minimized(handle)
+    
+    # 获取缩放比
+    scale_factor = get_scaling_factor(handle)
     print(f"检测到缩放比例: {scale_factor:.1f}x")
     
     # 截图
@@ -163,12 +165,24 @@ def test():
     
     # 图像匹配
     target_pos, result_img = match_template(img, "1.png", 0.8)
-    
+    if test:
+        cv2.imshow('result',result_img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        
     # 应用缩放
     scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1])
     
     # 执行点击操作
     do_left_mouse_click(handle, scaled_x, scaled_y)
+    
+
+
+def test():
+    # 获取窗口信息
+    handle = get_window_handle('美食大战老鼠')
+    
+    match_and_click(handle,'1.png',True)
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
