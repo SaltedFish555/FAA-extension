@@ -89,7 +89,7 @@ def capture_image_png_once(handle: HWND):
     return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
 
 # ---------------------- 图像匹配函数（增加可视化）----------------------
-def match_template(source_img, template_path, match_threshold=0.8):
+def match_template(source_img, template_path, match_threshold=0.9):
     template = cv2.imread(template_path)
     if template is None:
         raise Exception(f"无法读取模板图像: {template_path}")
@@ -150,7 +150,7 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def match_and_click(handle,img_path:str,test:bool=False):
+def match_and_click(handle,img_path:str,test:bool=True):
     '''匹配图片并进行点击'''
     
     # 激活窗口
@@ -158,24 +158,30 @@ def match_and_click(handle,img_path:str,test:bool=False):
     
     # 获取缩放比
     scale_factor = get_scaling_factor(handle)
-    print(f"检测到缩放比例: {scale_factor:.1f}x")
+    # scale_factor = 1.25 # 代码有问题，先自己设一个
+    # print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
     img = capture_image_png_once(handle)
     
     # 图像匹配
-    target_pos, result_img = match_template(img, "1.png", 0.8)
+    target_pos, result_img = match_template(img, img_path, 0.9)
     if test:
         cv2.imshow('result',result_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-        
+    
+    # 添加匹配失败处理
+    if target_pos is None:
+        print(f"⚠️ 未匹配到图片 {img_path}，跳过点击")
+        return
     # 应用缩放
     scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1])
     
     # 执行点击操作
     do_left_mouse_click(handle, scaled_x, scaled_y)
-    
+
+
 
 
 def test():

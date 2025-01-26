@@ -3,7 +3,6 @@
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
 
-
 import sys
 import json
 from PyQt6.QtWidgets import (
@@ -12,6 +11,9 @@ from PyQt6.QtWidgets import (
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
 from PyQt6.QtCore import Qt, QSize, QTimer
+
+from execute import execute
+
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):
@@ -88,8 +90,8 @@ class ImageSettingsWidget(QWidget):
             area_layout.addWidget(QLabel(text))
             area_layout.addWidget(spin)
         
-        coordinates[2][1].setValue(950)
-        coordinates[3][1].setValue(600)
+        coordinates[2][1].setValue(2000)
+        coordinates[3][1].setValue(2000)
         
         action_layout.addLayout(area_layout)
         main_layout.addLayout(action_layout)
@@ -157,6 +159,8 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(800)
         self.initial_height = 200
         self.config_widgets = []
+        self.current_config_path = None
+        self.temp_config_path = "temp_config.json"
 
         self.init_ui()
         self.update_max_height()
@@ -168,6 +172,22 @@ class MainWindow(QMainWindow):
         main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(10)
+
+        # === 当前配置路径显示 ===
+        path_display_layout = QHBoxLayout()
+        path_display_layout.addWidget(QLabel("当前配置路径:"))
+        
+        self.current_config_label = QLabel("无")
+        self.current_config_label.setStyleSheet("color: #666;")
+        self.current_config_label.setWordWrap(True)
+        path_display_layout.addWidget(self.current_config_label, stretch=1)
+        
+        clear_btn = QPushButton("×")
+        clear_btn.setFixedSize(20, 20)
+        clear_btn.clicked.connect(lambda: self.update_config_path(None))
+        path_display_layout.addWidget(clear_btn)
+        
+        main_layout.addLayout(path_display_layout)
 
         self.add_btn = QPushButton("添加配置")
         self.add_btn.clicked.connect(lambda: self.add_config())
@@ -186,20 +206,55 @@ class MainWindow(QMainWindow):
         # === 底部按钮布局 ===
         bottom_btn_layout = QHBoxLayout()
         
-        # 打开配置按钮
         self.open_btn = QPushButton("打开配置")
         self.open_btn.clicked.connect(self.load_config)
         bottom_btn_layout.addWidget(self.open_btn)
-        
-        # 保存配置按钮
+
         self.save_btn = QPushButton("保存配置")
         self.save_btn.clicked.connect(self.save_config)
         bottom_btn_layout.addWidget(self.save_btn)
-        
-        bottom_btn_layout.addStretch()  # 添加弹簧使按钮右对齐
-        main_layout.addLayout(bottom_btn_layout)
 
+        bottom_btn_layout.addStretch()
+
+        hwnd_label = QLabel("窗口句柄")
+        bottom_btn_layout.addWidget(hwnd_label)
+
+        self.window_name_edit = QLineEdit()
+        self.window_name_edit.setFixedWidth(150)
+        self.window_name_edit.setPlaceholderText("输入窗口句柄")
+        bottom_btn_layout.addWidget(self.window_name_edit)
+
+        self.execute_btn = QPushButton("执行脚本")
+        self.execute_btn.setFixedWidth(100)
+        self.execute_btn.clicked.connect(self.execute_script)
+        bottom_btn_layout.addWidget(self.execute_btn)
+
+        main_layout.addLayout(bottom_btn_layout)
         self.resize(QSize(800, self.initial_height))
+
+    def update_config_path(self, path):
+        """ 更新当前配置路径显示 """
+        self.current_config_path = path
+        display_text = path if path else "无"
+        self.current_config_label.setText(display_text)
+        self.current_config_label.setToolTip(display_text)
+
+    def execute_script(self):
+        """ 执行脚本的核心方法 """
+        if not self.current_config_path:
+            QMessageBox.warning(self, "警告", "请先保存配置或加载现有配置")
+            return
+
+        window_name = self.window_name_edit.text().strip()
+        if not window_name:
+            QMessageBox.warning(self, "警告", "请输入窗口名")
+            return
+
+        try:
+            execute(window_name,self.current_config_path)
+            QMessageBox.information(self, "成功", "脚本执行已完成")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"执行失败：{str(e)}")
 
     def update_max_height(self):
         screen_geo = QApplication.primaryScreen().availableGeometry()
@@ -286,12 +341,12 @@ class MainWindow(QMainWindow):
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
+            self.update_config_path(file_path)
             QMessageBox.information(self, "成功", "配置保存成功！")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"保存文件时出错：{str(e)}")
 
     def load_config(self):
-        """加载配置文件"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "打开配置文件", "", "JSON Files (*.json)"
         )
@@ -302,20 +357,17 @@ class MainWindow(QMainWindow):
             with open(file_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
             
-            # 清空现有配置
             while self.config_widgets:
                 widget = self.config_widgets.pop()
                 self.scroll_layout.removeWidget(widget)
                 widget.deleteLater()
             
-            # 加载新配置
             for item in config_data:
                 new_config = ImageSettingsWidget()
                 self._apply_config_data(new_config, item)
                 self.scroll_layout.addWidget(new_config)
                 self.config_widgets.append(new_config)
                 
-                # 连接信号
                 new_config.delete_btn.clicked.connect(
                     lambda _, w=new_config: self.remove_config(w)
                 )
@@ -323,7 +375,7 @@ class MainWindow(QMainWindow):
                     lambda _, w=new_config: self.insert_config_after(w)
                 )
 
-            # 更新窗口高度
+            self.update_config_path(file_path)
             QApplication.processEvents()
             self.resize(self.width(), min(
                 self.calculate_required_height(),
@@ -335,27 +387,26 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "错误", f"加载配置文件失败：{str(e)}")
 
     def _apply_config_data(self, widget, data):
-        """将数据应用到控件"""
-        # 设置基础参数
         widget.image_path_edit.setText(data.get("template_path", ""))
         widget.check_template_check.setChecked(data.get("check_enabled", False))
         
-        # 设置数值参数
         widget.tolerance_group.itemAt(1).widget().setValue(data.get("tolerance", 0.95))
         widget.interval_group.itemAt(1).widget().setValue(data.get("interval", 0.1))
         widget.timeout_group.itemAt(1).widget().setValue(data.get("timeout", 10.0))
         widget.sleep_group.itemAt(1).widget().setValue(data.get("after_sleep", 0.5))
         
-        # 设置截图区域
         source_range = data.get("source_range", [0, 0, 0, 0])
         widget.x1_spin.setValue(source_range[0])
         widget.y1_spin.setValue(source_range[1])
         widget.x2_spin.setValue(source_range[2])
         widget.y2_spin.setValue(source_range[3])
 
-# 调用方法
-# if __name__ == "__main__":
-#     app = QApplication(sys.argv)
-#     window = MainWindow()
-#     window.show()
-#     sys.exit(app.exec())
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

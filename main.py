@@ -1,5 +1,10 @@
 from ui import *
-from excute import excute
+from execute import execute
+
+
+
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
