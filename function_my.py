@@ -1,5 +1,5 @@
 from ctypes import windll, byref, c_ubyte
-from ctypes.wintypes import RECT, HWND, POINT
+from ctypes.wintypes import RECT, HWND
 import win32con, win32gui
 import cv2
 from numpy import uint8, frombuffer
@@ -20,19 +20,14 @@ def do_left_mouse_move_to( handle, x, y):
 
 
 # ---------------------- 坐标转换增强函数 ----------------------
-def get_scaling_factor(handle):
+def get_scaling_factor():
     """获取窗口缩放比例（处理高DPI）"""
-    
-    try:
-        # Windows 10+ 方法
-        dpi = windll.user32.GetDpiForWindow(handle)
-        return dpi / 96.0
-    except:
-        # 兼容旧版Windows
-        dc = windll.user32.GetDC(0)
-        scale = windll.gdi32.GetDeviceCaps(dc, 88) / 96.0  # 88=LOGPIXELSX
-        windll.user32.ReleaseDC(0, dc)
-        return scale
+    hdc = windll.user32.GetDC(0)
+    # 获取屏幕的水平DPI
+    my_dpi = windll.gdi32.GetDeviceCaps(hdc, 88)  # 88 is the index for LOGPIXELSX
+    windll.user32.ReleaseDC(0, hdc)
+    return my_dpi / 96.0
+
 
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
@@ -159,8 +154,7 @@ def match_and_click(handle,img_path:str,test:bool=True):
     restore_window_if_minimized(handle)
     
     # 获取缩放比
-    scale_factor = get_scaling_factor(handle)
-    # scale_factor = 1.25 # 代码有问题，先自己设一个
+    scale_factor = get_scaling_factor()
     # print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
@@ -178,13 +172,38 @@ def match_and_click(handle,img_path:str,test:bool=True):
         print(f"⚠️ 未匹配到图片 {img_path}，跳过点击")
         return
     # 应用缩放
-    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1])
+    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1],scale_factor)
     
     # 执行点击操作
     do_left_mouse_click(handle, scaled_x, scaled_y)
 
 
+import json
+from time import sleep
 
+def load_config(config_path):
+    """读取JSON配置文件"""
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+    
+    
+def execute(window_name, configs_path):
+    """执行自动化脚本流程"""
+    handle=get_window_handle(window_name)
+    configs=load_config(configs_path)
+    for step_config in configs:
+        # 获取当前步骤配置参数
+        template_path = step_config["template_path"]
+        after_sleep = step_config["after_sleep"]
+        
+        # 执行匹配点击操作
+        match_and_click(handle, template_path)
+        
+        # 执行后等待
+        sleep(after_sleep)
+
+
+# 测试代码
 
 def test():
     # 获取窗口信息
@@ -192,7 +211,8 @@ def test():
     
     # match_and_click(handle,'1.png',True)
     
-    print(get_scaling_factor(65552))
+    # print(get_scaling_factor())
+    execute('美食大战老鼠','1111.json')
     
 
     

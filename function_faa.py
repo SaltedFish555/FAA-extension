@@ -22,12 +22,13 @@ def do_left_mouse_move_to( handle, x, y):
 
 
 # ---------------------- 坐标转换增强函数 ----------------------
-def get_scaling_factor(handle):
+def get_scaling_factor():
     """获取窗口缩放比例（处理高DPI）"""
-    
+    # 获取桌面窗口的句柄
+    desktop_handle = win32gui.GetDesktopWindow()
     try:
         # Windows 10+ 方法
-        dpi = windll.user32.GetDpiForWindow(handle)
+        dpi = windll.user32.GetDpiForWindow(desktop_handle)
         return dpi / 96.0
     except:
         # 兼容旧版Windows
@@ -160,8 +161,7 @@ def match_and_click(handle,img_path:str,test:bool=True):
     restore_window_if_minimized(handle)
     
     # 获取缩放比
-    scale_factor = get_scaling_factor(handle)
-    # scale_factor = 1.25 # 代码有问题，先自己设一个
+    scale_factor = get_scaling_factor()
     # print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
@@ -179,7 +179,7 @@ def match_and_click(handle,img_path:str,test:bool=True):
         print(f"⚠️ 未匹配到图片 {img_path}，跳过点击")
         return
     # 应用缩放
-    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1])
+    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1],scale_factor)
     
     # 执行点击操作
     do_left_mouse_click(handle, scaled_x, scaled_y)
