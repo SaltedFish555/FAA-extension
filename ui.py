@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize, QTimer
 
-from function_my import execute
+from function_faa import execute
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):

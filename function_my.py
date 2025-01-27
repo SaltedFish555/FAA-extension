@@ -32,23 +32,23 @@ def get_scaling_factor():
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
     """增强版窗口查找函数"""
-    handle = win32gui.FindWindow('DUIWindow', name)
-    if handle == 0:
+    source_root_handle = win32gui.FindWindow('DUIWindow', name)
+    if source_root_handle == 0:
         # 尝试枚举窗口
-        def callback(handle, extra):
-            if win32gui.GetWindowText(handle) == name:
-                extra.append(handle)
+        def callback(source_root_handle, extra):
+            if win32gui.GetWindowText(source_root_handle) == name:
+                extra.append(source_root_handle)
         handles = []
-        win32gui.EnumWindows(callback, handles)
+        win32gui.EnumWindows(callback, source_root_handle)
         if handles:
             return handles[0]
         raise Exception(f"未找到标题为 '{name}' 的窗口")
-    handle = win32gui.FindWindowEx(handle, None, "TabContentWnd", "")
+    handle = win32gui.FindWindowEx(source_root_handle, None, "TabContentWnd", "")
     handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
     handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
     handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
     handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-    return handle
+    return source_root_handle,handle
 
 # ---------------------- 截图函数（保持原样）----------------------
 def capture_image_png_once(handle: HWND):
@@ -114,7 +114,6 @@ def restore_window_if_minimized(handle) -> bool:
     :param handle: 句柄
     :return: 如果是最小化, 并恢复至激活窗口的底层, 则返回True, 否则返回False.
     """
-    handle=264276
 
     # 检查窗口是否最小化
     if win32gui.IsIconic(handle):
@@ -147,11 +146,11 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def match_and_click(handle,img_path:str,test:bool=True):
+def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
     '''匹配图片并进行点击'''
     
     # 激活窗口
-    restore_window_if_minimized(handle)
+    restore_window_if_minimized(source_root_handle)
     
     # 获取缩放比
     scale_factor = get_scaling_factor()
@@ -189,7 +188,7 @@ def load_config(config_path):
     
 def execute(window_name, configs_path):
     """执行自动化脚本流程"""
-    handle=get_window_handle(window_name)
+    source_root_handle,handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
@@ -197,7 +196,7 @@ def execute(window_name, configs_path):
         after_sleep = step_config["after_sleep"]
         
         # 执行匹配点击操作
-        match_and_click(handle, template_path)
+        match_and_click(handle, source_root_handle,template_path)
         
         # 执行后等待
         sleep(after_sleep)

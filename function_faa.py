@@ -24,39 +24,33 @@ def do_left_mouse_move_to( handle, x, y):
 # ---------------------- 坐标转换增强函数 ----------------------
 def get_scaling_factor():
     """获取窗口缩放比例（处理高DPI）"""
-    # 获取桌面窗口的句柄
-    desktop_handle = win32gui.GetDesktopWindow()
-    try:
-        # Windows 10+ 方法
-        dpi = windll.user32.GetDpiForWindow(desktop_handle)
-        return dpi / 96.0
-    except:
-        # 兼容旧版Windows
-        dc = windll.user32.GetDC(0)
-        scale = windll.gdi32.GetDeviceCaps(dc, 88) / 96.0  # 88=LOGPIXELSX
-        windll.user32.ReleaseDC(0, dc)
-        return scale
+    hdc = windll.user32.GetDC(0)
+    # 获取屏幕的水平DPI
+    my_dpi = windll.gdi32.GetDeviceCaps(hdc, 88)  # 88 is the index for LOGPIXELSX
+    windll.user32.ReleaseDC(0, hdc)
+    return my_dpi / 96.0
+
 
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
     """增强版窗口查找函数"""
-    handle = win32gui.FindWindow('DUIWindow', name)
-    if handle == 0:
+    source_root_handle = win32gui.FindWindow('DUIWindow', name)
+    if source_root_handle == 0:
         # 尝试枚举窗口
-        def callback(handle, extra):
-            if win32gui.GetWindowText(handle) == name:
-                extra.append(handle)
+        def callback(source_root_handle, extra):
+            if win32gui.GetWindowText(source_root_handle) == name:
+                extra.append(source_root_handle)
         handles = []
-        win32gui.EnumWindows(callback, handles)
+        win32gui.EnumWindows(callback, source_root_handle)
         if handles:
             return handles[0]
         raise Exception(f"未找到标题为 '{name}' 的窗口")
-    handle = win32gui.FindWindowEx(handle, None, "TabContentWnd", "")
+    handle = win32gui.FindWindowEx(source_root_handle, None, "TabContentWnd", "")
     handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
     handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
     handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
     handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-    return handle
+    return source_root_handle,handle
 
 # ---------------------- 截图函数（保持原样）----------------------
 def capture_image_png_once(handle: HWND):
@@ -536,8 +530,6 @@ def loop_match_p_in_w(
             mask=template_mask,
             match_tolerance=match_tolerance,
             source_root_handle=source_root_handle,
-            test_show=True,
-            test_print=True
             )
         if find_target:
             break
@@ -591,7 +583,7 @@ def load_config(config_path):
     
 def execute(window_name, configs_path):
     """执行自动化脚本流程"""
-    handle=get_window_handle(window_name)
+    source_root_handle,handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
@@ -600,17 +592,17 @@ def execute(window_name, configs_path):
         template = cv2.imdecode(buf=np.fromfile(file=template_path, dtype=np.uint8), flags=-1)
         # 执行匹配点击操作
         # match_and_click(handle, template_path)
-        loop_match_p_in_w(source_handle=handle,match_tolerance=0.95,template=template,source_range=[0, 0, 2000, 2000])
+        loop_match_p_in_w(source_handle=handle,match_tolerance=0.95,template=template,source_range=[0, 0, 2000, 2000],source_root_handle=source_root_handle)
         # 执行后等待
         sleep(after_sleep)
 
 
-
-print(get_window_handle("美食大战老鼠"))
+# 测试识图效果
 def test():
     # 获取窗口信息
+    source_root_handle,handle=get_window_handle("美食大战老鼠")
     result=loop_match_p_in_w(
-        source_handle=get_window_handle("美食大战老鼠"),
+        source_handle=handle,
         source_range=[0, 0, 2000, 2000],
         template='2.png', # 目标图片，即需要点击的区域
         
