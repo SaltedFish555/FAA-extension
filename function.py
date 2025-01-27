@@ -89,8 +89,9 @@ def capture_image_png_once(handle: HWND):
     return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
 
 # ---------------------- 图像匹配函数（增加可视化）----------------------
+import numpy as np
 def match_template(source_img, template_path, match_threshold=0.9):
-    template = cv2.imread(template_path)
+    template = cv2.imdecode(buf=np.fromfile(file=template_path, dtype=np.uint8), flags=-1)
     if template is None:
         raise Exception(f"无法读取模板图像: {template_path}")
     
@@ -118,6 +119,7 @@ def restore_window_if_minimized(handle) -> bool:
     :param handle: 句柄
     :return: 如果是最小化, 并恢复至激活窗口的底层, 则返回True, 否则返回False.
     """
+    handle=264276
 
     # 检查窗口是否最小化
     if win32gui.IsIconic(handle):
@@ -186,9 +188,13 @@ def match_and_click(handle,img_path:str,test:bool=True):
 
 def test():
     # 获取窗口信息
-    handle = get_window_handle('美食大战老鼠')
+    # handle = get_window_handle('美食大战老鼠')
     
-    match_and_click(handle,'1.png',True)
+    # match_and_click(handle,'1.png',True)
+    
+    print(get_scaling_factor(65552))
+    
+
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":

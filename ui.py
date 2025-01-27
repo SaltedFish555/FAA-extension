@@ -5,15 +5,14 @@ os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
 
 import sys
 import json
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt5.QtCore import Qt, QSize, QTimer
 
 from execute import execute
-
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):
@@ -216,12 +215,12 @@ class MainWindow(QMainWindow):
 
         bottom_btn_layout.addStretch()
 
-        hwnd_label = QLabel("窗口句柄")
+        hwnd_label = QLabel("窗口名")
         bottom_btn_layout.addWidget(hwnd_label)
 
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
-        self.window_name_edit.setPlaceholderText("输入窗口句柄")
+        self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠 | 小号1）")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -401,12 +400,10 @@ class MainWindow(QMainWindow):
         widget.x2_spin.setValue(source_range[2])
         widget.y2_spin.setValue(source_range[3])
 
-def main():
+
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    main()

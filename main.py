@@ -1,7 +1,5 @@
-from ui import *
-from execute import execute
-
-
+from ui import QApplication,MainWindow
+import sys
 
 
 
