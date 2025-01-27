@@ -1,4 +1,4 @@
-from function import match_and_click,get_window_handle
+from my_function import match_and_click,get_window_handle
 import json
 from time import sleep
 def load_config(config_path):

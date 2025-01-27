@@ -88,7 +88,8 @@ def capture_image_png_once(handle: HWND):
 
     # 将缓冲区数据转换为numpy数组，并重塑为图像的形状 (高度,宽度,[B G R A四通道])
     image = frombuffer(buffer, dtype=uint8).reshape(height, width, 4)
-    return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
+    # return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
+    return image # 原版
 
 # ---------------------- 图像匹配函数（增加可视化）----------------------
 def match_template(source_img, template_path, match_threshold=0.9):
@@ -117,7 +118,7 @@ def match_template(source_img, template_path, match_threshold=0.9):
 
 def restore_window_if_minimized(handle) -> bool:
     """
-    :param handle: 句柄
+    :param handle: 类名为DUIWindow句柄
     :return: 如果是最小化, 并恢复至激活窗口的底层, 则返回True, 否则返回False.
     """
 
@@ -580,6 +581,29 @@ def loop_match_p_in_w(
     time.sleep(after_sleep)
     return True
 
+import json
+from time import sleep
+def load_config(config_path):
+    """读取JSON配置文件"""
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+    
+    
+def execute(window_name, configs_path):
+    """执行自动化脚本流程"""
+    handle=get_window_handle(window_name)
+    configs=load_config(configs_path)
+    for step_config in configs:
+        # 获取当前步骤配置参数
+        template_path = step_config["template_path"]
+        after_sleep = step_config["after_sleep"]
+        template = cv2.imdecode(buf=np.fromfile(file=template_path, dtype=np.uint8), flags=-1)
+        # 执行匹配点击操作
+        # match_and_click(handle, template_path)
+        loop_match_p_in_w(source_handle=handle,match_tolerance=0.95,template=template,source_range=[0, 0, 2000, 2000])
+        # 执行后等待
+        sleep(after_sleep)
+
 
 
 print(get_window_handle("美食大战老鼠"))
@@ -588,7 +612,7 @@ def test():
     result=loop_match_p_in_w(
         source_handle=get_window_handle("美食大战老鼠"),
         source_range=[0, 0, 2000, 2000],
-        template='1.png', # 目标图片，即需要点击的区域
+        template='2.png', # 目标图片，即需要点击的区域
         
         match_tolerance=0.95,
         match_interval=0.5,
@@ -600,4 +624,4 @@ def test():
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
-    test()
+    execute("美食大战老鼠",'1111.json')
