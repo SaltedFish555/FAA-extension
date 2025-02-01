@@ -1,15 +1,16 @@
 from ctypes import windll, byref, c_ubyte
 from ctypes.wintypes import RECT, HWND
-import win32con, win32gui
+import win32con, win32gui,win32api
 import cv2
 from numpy import uint8, frombuffer
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
-    """执行动作函数 子函数"""
-    x = int(x )
-    y = int(y )
-    windll.user32.PostMessageW(handle, 0x0201, 0, y << 16 | x)
-    windll.user32.PostMessageW(handle, 0x0202, 0, y << 16 | x)
+    """模拟鼠标点击"""
+    win32gui.SetForegroundWindow(handle)
+    
+    win32api.SetCursorPos((x, y))
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
 
 def do_left_mouse_move_to( handle, x, y):
     """执行动作函数 子函数"""
@@ -32,7 +33,7 @@ def get_scaling_factor():
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
     """增强版窗口查找函数"""
-    source_root_handle = win32gui.FindWindow('DUIWindow', name)
+    source_root_handle = win32gui.FindWindow(None, name)
     if source_root_handle == 0:
         # 尝试枚举窗口
         def callback(source_root_handle, extra):
@@ -43,14 +44,19 @@ def get_window_handle(name):
         if handles:
             return handles[0]
         raise Exception(f"未找到标题为 '{name}' 的窗口")
-    handle = win32gui.FindWindowEx(source_root_handle, None, "TabContentWnd", "")
-    handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
-    handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
-    handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
-    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-    return source_root_handle,handle
+    # handle = win32gui.FindWindowEx(source_root_handle, None, "TabContentWnd", "")
+    # handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
+    # handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
+    # handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
+    # handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
+    return source_root_handle
 
 # ---------------------- 截图函数（保持原样）----------------------
+
+
+
+
+
 def capture_image_png_once(handle: HWND):
     # 获取窗口客户区的大小
     r = RECT()
@@ -109,6 +115,42 @@ def match_template(source_img, template_path, match_threshold=0.9):
     
     return center, marked_img
 
+
+from PIL import Image, ImageGrab
+def get_window_pos(handle):
+    # 获取窗口句柄
+    if handle == 0:
+        return None
+    else:
+        # 返回坐标值和handle
+        return win32gui.GetWindowRect(handle)
+    
+
+def capture(handle):
+    win32gui.SendMessage(handle, win32con.WM_SYSCOMMAND, win32con.SC_RESTORE, 0)
+    # 发送还原最小化窗口的信息
+    win32gui.SetForegroundWindow(handle)
+    # 设为高亮
+    x1, y1, x2, y2 = get_window_pos(handle)
+    sleep(0.1)
+    # 截图（PIL格式）
+    img_pil = ImageGrab.grab((x1, y1, x2, y2))
+    # 转换为OpenCV格式（PIL是RGB，OpenCV需要BGR）
+    img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+    
+    # 如果需要展示验证（调试时可取消注释）
+    # cv2.imshow('Captured', img_cv)
+    # cv2.waitKey(0)
+    
+    return img_cv  # 返回OpenCV格式图像
+    
+
+
+
+
+
+
+
 def restore_window_if_minimized(handle) -> bool:
     """
     :param handle: 句柄
@@ -157,7 +199,7 @@ def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
     # print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
-    img = capture_image_png_once(handle)
+    img = capture(handle)
     
     # 图像匹配
     target_pos, result_img = match_template(img, img_path, 0.9)
@@ -172,9 +214,12 @@ def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
         return
     # 应用缩放
     scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1],scale_factor)
-    
-    # 执行点击操作
-    do_left_mouse_click(handle, scaled_x, scaled_y)
+    x1, y1, x2, y2 = get_window_pos(handle)
+    # 加上偏移后再进行 DPI 缩放（或先缩放后加偏移，根据实际情况调整）
+    final_x = x1 + scaled_x
+    final_y = y1 + scaled_y
+    do_left_mouse_click(handle, final_x, final_y)
+
 
 
 import json
@@ -188,7 +233,7 @@ def load_config(config_path):
     
 def execute(window_name, configs_path):
     """执行自动化脚本流程"""
-    source_root_handle,handle=get_window_handle(window_name)
+    source_root_handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
@@ -196,7 +241,7 @@ def execute(window_name, configs_path):
         after_sleep = step_config["after_sleep"]
         
         # 执行匹配点击操作
-        match_and_click(handle, source_root_handle,template_path)
+        match_and_click(source_root_handle, source_root_handle,template_path,False)
         
         # 执行后等待
         sleep(after_sleep)
@@ -206,17 +251,17 @@ def execute(window_name, configs_path):
 
 def test():
     # 获取窗口信息
-    # handle = get_window_handle('美食大战老鼠')
+    # source_root_handle = get_window_handle('美食大战老鼠')
     
-    # match_and_click(handle,'1.png',True)
+    # match_and_click(source_root_handle,source_root_handle,'Snipaste_2025-02-01_00-35-29.png',True)
     
     # print(get_scaling_factor())
-    # execute('美食大战老鼠','1111.json')
+    execute('美食大战老鼠','1111.json')
     
-    img=capture_image_png_once(1049958)
-    cv2.imshow('img',img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # img=capture_image_png_once(handle)
+    # cv2.imshow('img',img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
