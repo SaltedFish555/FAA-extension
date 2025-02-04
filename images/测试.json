@@ -1,0 +1,128 @@
+[
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/曲奇岛.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/创建.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 21.0,
+    "after_sleep": 3.5,
+    "check_enabled": false,
+    "source_range": [
+      1,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/魔塔卡组.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/开始.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 2.0,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/放角色.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/小火炉.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/格子.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/海星.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/格子2.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  }
+]
