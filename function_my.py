@@ -146,7 +146,7 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
+def match_and_click(handle,source_root_handle,img_path:str,test:bool=False):
     '''匹配图片并进行点击'''
     
     # 激活窗口
@@ -199,7 +199,7 @@ def execute(window_name, configs_path):
         match_and_click(handle, source_root_handle,template_path)
         
         # 执行后等待
-        sleep(after_sleep)
+        sleep(5)
 
 
 # 测试代码

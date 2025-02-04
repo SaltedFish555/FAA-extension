@@ -10,9 +10,56 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
-from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtCore import Qt, QSize, QTimer,QEvent,QObject
+from execute_thread import ExecuteThread
 
-from function_faa import execute
+def create_param_group(label, default, decimals, suffix, is_float=True):
+    """创建 标签+SpinBox 组件。
+    
+    参数:
+        label (str): 标签的文本内容，显示在 QLabel 中。
+        default (int 或 float): 数值输入框的默认值。根据 is_float 决定是整数还是浮点数。
+        decimals (int): 小数位数（仅对 QDoubleSpinBox 有效）。
+        suffix (str): 数值输入框的后缀文本（例如单位 "px" 或 "%"）。
+        is_float (bool): 是否使用浮点数输入框（QDoubleSpinBox）。
+                        True 为浮点数，False 为整数。
+    """
+    group = QHBoxLayout()
+    group.setContentsMargins(0, 0, 0, 0)
+    group.setSpacing(5)
+    
+    lbl = QLabel(label)
+    lbl.setFixedWidth(60)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    group.addWidget(lbl)
+
+    # 根据 is_float 决定使用 QSpinBox 或 QDoubleSpinBox
+    if is_float:
+        spin = QDoubleSpinBox()
+        spin.setDecimals(decimals)
+    else:
+        spin = QSpinBox()
+
+    # 禁用滚轮事件的核心部分
+    class WheelFilter(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() == QEvent.Wheel:
+                return True  # 禁用滚轮事件
+            return super().eventFilter(obj, event)
+    
+    wheel_filter = WheelFilter(spin)
+    spin.installEventFilter(wheel_filter)  # 安装事件过滤器
+
+    spin.setValue(default)
+    spin.setFixedWidth(100)
+    if suffix:
+        spin.setSuffix(f" {suffix}")
+    group.addWidget(spin)
+
+    return group
+
+
+
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):
@@ -45,18 +92,18 @@ class ImageSettingsWidget(QWidget):
         param_layout.setContentsMargins(0, 0, 0, 0)
         param_layout.setSpacing(15)
 
-        self.tolerance_group = self.create_param_group("精度:", 0.95, 2, "")
+        self.tolerance_group = create_param_group("精度:", 0.95, 2, "")
         param_layout.addLayout(self.tolerance_group)
 
-        self.interval_group = self.create_param_group("间隔:", 0.10, 2, "秒")
+        self.interval_group = create_param_group("间隔:", 0.10, 2, "秒")
         param_layout.addLayout(self.interval_group)
 
-        self.timeout_group = self.create_param_group("超时:", 10.0, 2, "秒")
+        self.timeout_group = create_param_group("超时:", 10.0, 2, "秒")
         param_layout.addLayout(self.timeout_group)
 
         sleep_container = QHBoxLayout()
         sleep_container.addStretch()
-        self.sleep_group = self.create_param_group("休眠:", 0.50, 2, "秒")
+        self.sleep_group = create_param_group("休眠:", 0.50, 2, "秒")
         sleep_container.addLayout(self.sleep_group)
         param_layout.addLayout(sleep_container, stretch=1)
         
@@ -111,24 +158,7 @@ class ImageSettingsWidget(QWidget):
 
         self.browse_btn.clicked.connect(self.browse_image)
 
-    def create_param_group(self, label, default, decimals, suffix):
-        group = QHBoxLayout()
-        group.setContentsMargins(0, 0, 0, 0)
-        group.setSpacing(5)
-        
-        lbl = QLabel(label)
-        lbl.setFixedWidth(60)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        group.addWidget(lbl)
-        
-        spin = QDoubleSpinBox()
-        spin.setDecimals(decimals)
-        spin.setValue(default)
-        spin.setFixedWidth(100)
-        if suffix:
-            spin.setSuffix(f" {suffix}")
-        group.addWidget(spin)
-        return group
+
 
     def browse_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择模板图片", "", "PNG Files (*.png)")
@@ -213,6 +243,10 @@ class MainWindow(QMainWindow):
         self.save_btn.clicked.connect(self.save_config)
         bottom_btn_layout.addWidget(self.save_btn)
 
+        
+        self.loop_group=create_param_group("循环执行次数",1,0,"次",is_float=False)
+        bottom_btn_layout.addLayout(self.loop_group)
+
         bottom_btn_layout.addStretch()
 
         hwnd_label = QLabel("窗口名")
@@ -220,7 +254,9 @@ class MainWindow(QMainWindow):
 
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
-        self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠 | 小号1）")
+        
+        self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
+        self.window_name_edit.setText("美食大战老鼠")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -248,12 +284,15 @@ class MainWindow(QMainWindow):
         if not window_name:
             QMessageBox.warning(self, "警告", "请输入窗口名")
             return
-
-        try:
-            execute(window_name,self.current_config_path)
-            QMessageBox.information(self, "成功", "脚本执行已完成")
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"执行失败：{str(e)}")
+        loop_times=self.loop_group.itemAt(1).widget().value()
+        thread=ExecuteThread(window_name,self.current_config_path,loop_times)
+        thread.start()
+        
+        def show_message(title,text):
+            # 在主线程中显示消息框
+            QMessageBox.information(self, title, text)
+        # 连接信号到槽函数
+        thread.message_signal.connect(show_message)
 
     def update_max_height(self):
         screen_geo = QApplication.primaryScreen().availableGeometry()

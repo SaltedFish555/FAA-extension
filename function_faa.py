@@ -513,7 +513,7 @@ def loop_match_p_in_w(
         :param after_sleep: 找到图 / 失败后 / 点击后(如果点击) / 复核(如果复核) 后的休眠时间
         :param click: 是否点一下
         :param click_handle: 是否启用不一样的点击句柄
-        :param after_click_template: 点击后进行检查, 若能找到该图片, 视为无效, 不输出True, 继承前者的 tolerance interval
+        :param after_click_template: 点击后进行检查, 若能找到该图片, 视为无效, 不输出True, 继承前者的 tolerance interval (如果要检查的话可以传和template一样的参数)
         :param after_click_template_mask: 检查 - 掩模
         :param source_root_handle: 根窗口句柄, 用于检查窗口是否最小化, 如果最小化则尝试恢复至激活窗口的底层 可空置
 
@@ -580,21 +580,28 @@ def load_config(config_path):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
     
-    
 def execute(window_name, configs_path):
     """执行自动化脚本流程"""
     source_root_handle,handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
-        template_path = step_config["template_path"]
-        after_sleep = step_config["after_sleep"]
-        template = cv2.imdecode(buf=np.fromfile(file=template_path, dtype=np.uint8), flags=-1)
         # 执行匹配点击操作
-        # match_and_click(handle, template_path)
-        loop_match_p_in_w(source_handle=handle,match_tolerance=0.95,template=template,source_range=[0, 0, 2000, 2000],source_root_handle=source_root_handle)
-        # 执行后等待
-        sleep(after_sleep)
+        after_click_template=None
+        if step_config["check_enabled"]:
+            after_click_template=step_config["template_path"]
+        loop_match_p_in_w(
+            source_handle=handle,
+            source_root_handle=source_root_handle,
+            match_tolerance=step_config["tolerance"],
+            template=step_config["template_path"],
+            match_interval=step_config["interval"],
+            match_failed_check=step_config["timeout"],
+            source_range=step_config["source_range"],
+            after_click_template=after_click_template,
+            after_sleep = step_config["after_sleep"],
+            
+        )
 
 
 # 测试识图效果

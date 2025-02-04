@@ -1,0 +1,30 @@
+[
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/宝石.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  },
+  {
+    "template_path": "I:/MyCode/FAA-extension/images/分解.png",
+    "tolerance": 0.95,
+    "interval": 0.1,
+    "timeout": 10.0,
+    "after_sleep": 0.5,
+    "check_enabled": false,
+    "source_range": [
+      0,
+      0,
+      2000,
+      2000
+    ]
+  }
+]
