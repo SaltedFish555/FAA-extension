@@ -3,6 +3,8 @@ from ctypes.wintypes import RECT, HWND
 import win32con, win32gui,win32api
 import cv2
 from numpy import uint8, frombuffer
+import ctypes
+from win32api import GetSystemMetrics
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
     """模拟鼠标点击"""
@@ -23,11 +25,31 @@ def do_left_mouse_move_to( handle, x, y):
 # ---------------------- 坐标转换增强函数 ----------------------
 def get_scaling_factor():
     """获取窗口缩放比例（处理高DPI）"""
-    hdc = windll.user32.GetDC(0)
-    # 获取屏幕的水平DPI
-    my_dpi = windll.gdi32.GetDeviceCaps(hdc, 88)  # 88 is the index for LOGPIXELSX
-    windll.user32.ReleaseDC(0, hdc)
-    return my_dpi / 96.0
+    try:
+        # 加载相关 DLL
+        user32 = ctypes.windll.user32
+        shcore = ctypes.windll.shcore
+
+        # 启用当前进程的 DPI 感知能力
+        user32.SetProcessDPIAware()
+
+        # 获取主显示器的句柄
+        hmonitor = user32.MonitorFromWindow(user32.GetDesktopWindow(), 1)  # 1 = MONITOR_DEFAULTTOPRIMARY
+
+        # 定义变量存储 DPI
+        dpi_x = ctypes.c_uint()
+        dpi_y = ctypes.c_uint()
+
+        # 获取主显示器的 DPI 值
+        shcore.GetDpiForMonitor(hmonitor, 0, ctypes.byref(dpi_x), ctypes.byref(dpi_y))  # 0 = MDT_EFFECTIVE_DPI
+
+        # 计算缩放比例
+        scale_factor = dpi_x.value / 96 * 100  # 96 是标准 DPI
+
+        return round(scale_factor/100, 2)
+
+    except Exception as e:
+        return f"错误: {e}"
 
 
 # ---------------------- 窗口操作函数 ----------------------
@@ -57,11 +79,11 @@ def get_window_handle(name):
 
 
 
-def capture_image_png_once(handle: HWND):
+def capture(handle: HWND,a):
     # 获取窗口客户区的大小
     r = RECT()
-    windll.user32.GetClientRect(handle, byref(r))  # 获取指定窗口句柄的客户区大小
-    width, height = r.right, r.bottom  # 客户区宽度和高度
+    windll.user32.GetWindowRect(handle, byref(r))  # 获取指定窗口句柄的客户区大小
+    width, height = r.right - r.left, r.bottom - r.top  # 整个窗口的宽度和高度
 
     # 创建设备上下文
     dc = windll.user32.GetDC(handle)  # 获取窗口的设备上下文
@@ -116,7 +138,7 @@ def match_template(source_img, template_path, match_threshold=0.9):
     return center, marked_img
 
 
-from PIL import Image, ImageGrab
+
 def get_window_pos(handle):
     # 获取窗口句柄
     if handle == 0:
@@ -125,31 +147,6 @@ def get_window_pos(handle):
         # 返回坐标值和handle
         return win32gui.GetWindowRect(handle)
     
-
-def capture(handle):
-    win32gui.SendMessage(handle, win32con.WM_SYSCOMMAND, win32con.SC_RESTORE, 0)
-    # 发送还原最小化窗口的信息
-    win32gui.SetForegroundWindow(handle)
-    # 设为高亮
-    x1, y1, x2, y2 = get_window_pos(handle)
-    sleep(0.1)
-    # 截图（PIL格式）
-    img_pil = ImageGrab.grab((x1, y1, x2, y2))
-    # 转换为OpenCV格式（PIL是RGB，OpenCV需要BGR）
-    img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-    
-    # 如果需要展示验证（调试时可取消注释）
-    # cv2.imshow('Captured', img_cv)
-    # cv2.waitKey(0)
-    
-    return img_cv  # 返回OpenCV格式图像
-    
-
-
-
-
-
-
 
 def restore_window_if_minimized(handle) -> bool:
     """
@@ -188,21 +185,25 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
-    '''匹配图片并进行点击'''
+def match_and_click(handle,source_root_handle,img_path:str,tolerance=0.95,test:bool=False):
+    '''
+    匹配图片并进行点击
+    
+    成功返回True，失败返回False
+    '''
     
     # 激活窗口
     restore_window_if_minimized(source_root_handle)
     
     # 获取缩放比
     scale_factor = get_scaling_factor()
-    # print(f"检测到缩放比例: {scale_factor:.2f}x")
+    print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
-    img = capture(handle)
+    img = capture(handle,scale_factor)
     
     # 图像匹配
-    target_pos, result_img = match_template(img, img_path, 0.9)
+    target_pos, result_img = match_template(img, img_path, tolerance)
     if test:
         cv2.imshow('result',result_img)
         cv2.waitKey(0)
@@ -211,7 +212,7 @@ def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
     # 添加匹配失败处理
     if target_pos is None:
         print(f"⚠️ 未匹配到图片 {img_path}，跳过点击")
-        return
+        return False
     # 应用缩放
     scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1],scale_factor)
     x1, y1, x2, y2 = get_window_pos(handle)
@@ -219,6 +220,26 @@ def match_and_click(handle,source_root_handle,img_path:str,test:bool=True):
     final_x = x1 + scaled_x
     final_y = y1 + scaled_y
     do_left_mouse_click(handle, final_x, final_y)
+    return True
+
+
+def loop_match_and_click(handle,img_path:str,tolerance=0.95,interval=0.2,timeout=10.0,after_sleep=0.5,check_enabled=False,source_range=[0,0,2000,2000],test:bool=False):
+    spend_time=0.0
+    match_succeeded=False
+    while spend_time<=timeout and not match_succeeded:
+        match_succeeded=match_and_click(handle,handle,img_path,tolerance,test)
+        sleep(interval)
+        spend_time+=interval
+        
+        
+    sleep(after_sleep)
+    
+    # 检查点击后是否跳转（可以检查点击后是否还能识别到原来的图片，但这样写容易出bug，因此暂时不写）
+    # 未跳转成功则重新进行匹配，递归即可
+    if check_enabled:
+        pass
+    
+    return match_succeeded
 
 
 
@@ -237,14 +258,18 @@ def execute(window_name, configs_path):
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
-        template_path = step_config["template_path"]
-        after_sleep = step_config["after_sleep"]
-        
         # 执行匹配点击操作
-        match_and_click(source_root_handle, source_root_handle,template_path,False)
+        loop_match_and_click(
+            handle=source_root_handle, 
+            img_path=step_config["template_path"],
+            interval=step_config["interval"],
+            timeout=step_config["timeout"],
+            after_sleep = step_config["after_sleep"],
+            check_enabled=step_config["check_enabled"],
+            source_range=step_config["source_range"],
+            test=True
+        )
         
-        # 执行后等待
-        sleep(after_sleep)
 
 
 # 测试代码

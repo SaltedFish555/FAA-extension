@@ -148,36 +148,6 @@ def apply_dpi_scaling(x,y,scale_factor=1.0):
 
 
 
-def match_and_click(handle,img_path:str,test:bool=True):
-    '''匹配图片并进行点击'''
-    
-    # 激活窗口
-    restore_window_if_minimized(handle)
-    
-    # 获取缩放比
-    scale_factor = get_scaling_factor()
-    # print(f"检测到缩放比例: {scale_factor:.2f}x")
-    
-    # 截图
-    img = capture_image_png_once(handle)
-    
-    # 图像匹配
-    target_pos, result_img = match_template(img, img_path, 0.9)
-    if test:
-        cv2.imshow('result',result_img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-    
-    # 添加匹配失败处理
-    if target_pos is None:
-        print(f"⚠️ 未匹配到图片 {img_path}，跳过点击")
-        return
-    # 应用缩放
-    scaled_x,scaled_y=apply_dpi_scaling(target_pos[0],target_pos[1],scale_factor)
-    
-    # 执行点击操作
-    do_left_mouse_click(handle, scaled_x, scaled_y)
-
 
 
 def png_cropping(image, raw_range: list = None):
@@ -398,7 +368,7 @@ def match_p_in_w(
         match_tolerance: float = 0.95,
         return_center=True,
         test_print=False,
-        test_show=False,
+        test_show=True,
         template_name="Unknown",
 ) -> Union[None, list]:
     """

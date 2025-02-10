@@ -2,7 +2,6 @@
 # 忽略警告: libpng warning: iCCP: known incorrect sRGB profile
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
-
 import sys
 import json
 from PyQt5.QtWidgets import (
@@ -10,8 +9,16 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
-from PyQt5.QtCore import Qt, QSize, QTimer,QEvent,QObject
+from PyQt5.QtCore import Qt, QSize, QTimer,QEvent,QObject, QTime
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+# 初始化全局调度器
+scheduler = BackgroundScheduler()
+scheduler.start()
+
 from execute_thread import ExecuteThread
+
 
 def create_param_group(label, default, decimals, suffix, is_float=True):
     """创建 标签+SpinBox 组件。
@@ -256,7 +263,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit.setFixedWidth(150)
         
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("美食大战老鼠")
+        self.window_name_edit.setText("洛克童心智能辅助公测版Ver2.5.1 | QQ：1784224018 | 频道ID：128 | 地图ID：13 | VIP：369")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -266,6 +273,60 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(bottom_btn_layout)
         self.resize(QSize(800, self.initial_height))
+        
+        # === 定时任务区域 ===
+        timer_layout = QHBoxLayout()
+        timer_layout.setContentsMargins(0, 0, 0, 0)
+        timer_layout.setSpacing(5)
+
+        # 标签“定时运行时间：”
+        timer_label = QLabel("定时运行时间：")
+        timer_label.setFixedWidth(100)
+        timer_layout.addWidget(timer_label)
+
+        # 编辑框
+        self.timer_edit = QLineEdit()
+        self.timer_edit.setPlaceholderText("输入时间点（如 08:00:00）")
+        timer_layout.addWidget(self.timer_edit)
+
+        # 按钮“启动定时任务”
+        self.start_timer_btn = QPushButton("启动定时任务")
+        self.start_timer_btn.setFixedWidth(120)
+        self.start_timer_btn.clicked.connect(self.start_timer_task)
+        timer_layout.addWidget(self.start_timer_btn)
+
+        # 将定时任务区域添加到主布局
+        main_layout.addLayout(timer_layout)
+
+
+    def start_timer_task(self):
+        """启动定时任务"""
+        try:
+            # 获取用户输入的时间
+            time_input = self.timer_edit.text().strip()
+            task_time = QTime.fromString(time_input, "hh:mm:ss")
+
+            if not task_time.isValid():
+                QMessageBox.warning(None, "警告", "请输入有效的时间点（格式如 08:00:00）")
+                return
+
+            # 提取小时、分钟、秒
+            hour = task_time.hour()
+            minute = task_time.minute()
+            second = task_time.second()
+
+            # 添加定时任务到调度器
+            scheduler.add_job(
+                self.execute_script,  # 定时执行的函数
+                CronTrigger(hour=hour, minute=minute, second=second),
+                id="daily_task",  # 任务 ID
+                replace_existing=True  # 如果有同名任务则替换
+            )
+
+            QMessageBox.information(None, "成功", f"定时任务已启动，将在每天 {time_input} 执行一次\n注意：请确保配置完成，建议先使用“执行脚本”进行测试，确保无误后再使用定时功能")
+
+        except Exception as e:
+            QMessageBox.warning(None, "错误", f"启动定时任务时出错：{str(e)}")
 
     def update_config_path(self, path):
         """ 更新当前配置路径显示 """
