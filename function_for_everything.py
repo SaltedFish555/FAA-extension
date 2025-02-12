@@ -245,13 +245,17 @@ def load_config(config_path):
         return json.load(f)
     
     
-def execute(window_name, configs_path,need_test=False):
+def execute(window_name, configs_path,need_test=False,event_stop=None):
     """执行自动化脚本流程，暂被弃用"""
     source_root_handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
         # 执行匹配点击操作
+        
+        if event_stop and event_stop.is_set():
+            return
+        
         loop_match_and_click(
             handle=source_root_handle, 
             img_path=step_config["template_path"],
@@ -260,7 +264,8 @@ def execute(window_name, configs_path,need_test=False):
             after_sleep = step_config["after_sleep"],
             check_enabled=step_config["check_enabled"],
             source_range=step_config["source_range"],
-            test=need_test
+            test=need_test,
+            event_stop=event_stop
         )
         if step_config["click_input_enabled"]:
             # 通过模拟按下按键来进行输入（好处是无需句柄，坏处是需要保证在前台且获取到焦点）
@@ -299,29 +304,10 @@ class ExecuteThread(threading.Thread,QObject):
         
     def run(self):
         for _ in range(self.loop_times):
-            source_root_handle=get_window_handle(self.window_name)
-            configs=load_config(self.configs_path)
-            for step_config in configs:
-                if self._event_stop.is_set(): # 安全退出
-                    self.message_signal.emit("失败", "脚本执行已被中断")
-                    return 
-                # 获取当前步骤配置参数
-                # 执行匹配点击操作
-                loop_match_and_click(
-                    handle=source_root_handle, 
-                    img_path=step_config["template_path"],
-                    interval=step_config["interval"],
-                    timeout=step_config["timeout"],
-                    after_sleep = step_config["after_sleep"],
-                    check_enabled=step_config["check_enabled"],
-                    source_range=step_config["source_range"],
-                    test=self.need_test,
-                    event_stop=self._event_stop
-                )
-                if step_config["click_input_enabled"]:
-                    # 通过模拟按下按键来进行输入（好处是无需句柄，坏处是需要保证在前台且获取到焦点）
-                    pyautogui.write(step_config["click_input"], interval=0.05)  
-        self.message_signal.emit("成功", "脚本执行已完成")
+            if self._event_stop.is_set():
+                return
+            execute(self.window_name, self.configs_path,self.need_test,self._event_stop)
+        self.message_signal.emit("成功", "脚本执行已完成(或已被中断)")
     
     def stop(self):
         """安全停止线程"""

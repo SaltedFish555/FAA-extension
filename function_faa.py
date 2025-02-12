@@ -467,6 +467,7 @@ def loop_match_p_in_w(
         after_click_template=None,
         after_click_template_mask=None,
         source_root_handle=None,
+        event_stop=None
 ) -> bool:
     """
     根据句柄截图, 并在截图中寻找一个较小的图片资源.
@@ -492,7 +493,8 @@ def loop_match_p_in_w(
     """
     spend_time = 0.0
     while True:
-
+        if event_stop and event_stop.is_set():
+            return
         find_target = match_p_in_w(
             source_handle=source_handle,
             source_range=source_range,
@@ -550,13 +552,15 @@ def load_config(config_path):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
     
-def execute(window_name, configs_path):
+def execute(window_name, configs_path,event_stop=None):
     """执行自动化脚本流程"""
     source_root_handle,handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
         # 执行匹配点击操作
+        if event_stop and event_stop.is_set():
+            return
         after_click_template=None
         if step_config["check_enabled"]:
             after_click_template=step_config["template_path"]
@@ -570,8 +574,54 @@ def execute(window_name, configs_path):
             source_range=step_config["source_range"],
             after_click_template=after_click_template,
             after_sleep = step_config["after_sleep"],
-            
+            event_stop,
         )
+
+import threading
+from PyQt5.QtCore import QObject, pyqtSignal
+
+class ExecuteThread(threading.Thread,QObject):
+    """
+    用于执行脚本的线程类，执行完成后会弹出提示框，使用多线程是为了保证ui窗口不被阻塞。
+    
+    继承QObject是为了使用 PyQt 的信号槽机制，从而实现线程间通信（尤其是子线程与主线程的 GUI 交互），
+    因为Qt限制了只能在主线程使用消息框，因此要用信号槽机制来实现消息框提示
+    """
+    # 定义一个信号，用于传递消息，注意不能写在__init__函数里
+    # 因为：
+    # PyQt 的信号是通过 元类（MetaClass） 和 类属性声明 实现的。
+    # 当你在类作用域中声明 pyqtSignal 时，PyQt 的元类会在类定义阶段自动处理这些信号，将它们转换为合法的信号对象，并赋予它们 emit() 和 connect() 等方法。
+    # 而如果信号定义在 __init__ 中：
+    # 它们会成为 实例属性，而非类属性。
+    # PyQt 的元类无法在类定义阶段捕获和处理这些信号。
+    # 最终生成的信号对象只是一个普通的 pyqtSignal 包装器，不具备 connect 或 emit 功能。
+    message_signal = pyqtSignal(str, str)
+    def __init__(self,window_name, configs_path,loop_times,need_test=False):
+        # 显式调用所有父类构造函数
+        QObject.__init__(self)
+        threading.Thread.__init__(self)
+        self.window_name=window_name
+        self.configs_path=configs_path
+        self.loop_times=loop_times
+        self.need_test=need_test
+        self._event_stop=threading.Event() #标志位，用来安全中断线程
+        
+    def run(self):
+        for _ in range(self.loop_times):
+            if self._event_stop.is_set(): # 安全退出
+                self.message_signal.emit("失败", "脚本执行已被中断")
+                return  
+            execute(self.window_name, self.configs_path,self.need_test,self._event_stop)
+        self.message_signal.emit("成功", "脚本执行已完成")
+    
+    def stop(self):
+        """安全停止线程"""
+        self._event_stop.set()
+        
+        
+
+
+
 
 
 # 测试识图效果

@@ -324,7 +324,26 @@ class MainWindow(QMainWindow):
 
         # 将定时任务区域添加到主布局
         main_layout.addLayout(timer_layout)
+        
+        # === 底部日志区域 ===
+        self.log_label = QLabel("日志输出:")
+        self.log_label.setStyleSheet("color: #333; font-weight: bold;")
+        main_layout.addWidget(self.log_label)
 
+        self.log_output = QLabel("")
+        self.log_output.setStyleSheet("background: #f5f5f5; border: 1px solid #ccc; padding: 5px;")
+        self.log_output.setWordWrap(True)
+        self.log_output.setMinimumHeight(50)
+        main_layout.addWidget(self.log_output)
+    
+    
+    @staticmethod
+    def printlog(msg: str):
+        """ 静态方法，其他类可以用 MainWindow.printlog("xxx") 调用 """
+        if MainWindow.log_label:
+            MainWindow.log_label.setText(f"日志输出：{msg}")
+    
+    
     def start_timer_task(self):
         """启动定时任务"""
         try:
