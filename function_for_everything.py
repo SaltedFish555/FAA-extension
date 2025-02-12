@@ -76,41 +76,25 @@ def get_window_handle(name):
 # ---------------------- 截图函数（保持原样）----------------------
 
 
-
-
-
-def capture(handle: HWND,a):
-    # 获取窗口客户区的大小
-    r = RECT()
-    windll.user32.GetWindowRect(handle, byref(r))  # 获取指定窗口句柄的客户区大小
-    width, height = r.right - r.left, r.bottom - r.top  # 整个窗口的宽度和高度
-
-    # 创建设备上下文
-    dc = windll.user32.GetDC(handle)  # 获取窗口的设备上下文
-    cdc = windll.gdi32.CreateCompatibleDC(dc)  # 创建一个与给定设备兼容的内存设备上下文
-    bitmap = windll.gdi32.CreateCompatibleBitmap(dc, width, height)  # 创建兼容位图
-    windll.gdi32.SelectObject(cdc, bitmap)  # 将位图选入到内存设备上下文中，准备绘图
-
-    # 执行位块传输，将窗口客户区的内容复制到内存设备上下文中的位图
-    windll.gdi32.BitBlt(cdc, 0, 0, width, height, dc, 0, 0, 0x00CC0020)
-
-    # 准备缓冲区，用于接收位图的像素数据
-    total_bytes = width * height * 4  # 计算总字节数，每个像素4字节（RGBA）
-    buffer = bytearray(total_bytes)  # 创建字节数组作为缓冲区
-    byte_array = c_ubyte * total_bytes  # 定义C类型数组类型
-
-    # 从位图中获取像素数据到缓冲区
-    windll.gdi32.GetBitmapBits(bitmap, total_bytes, byte_array.from_buffer(buffer))
-
-    # 清理资源
-    windll.gdi32.DeleteObject(bitmap)  # 删除位图对象
-    windll.gdi32.DeleteObject(cdc)  # 删除内存设备上下文
-    windll.user32.ReleaseDC(handle, dc)  # 释放窗口的设备上下文
-
-    # 将缓冲区数据转换为numpy数组，并重塑为图像的形状 (高度,宽度,[B G R A四通道])
-    image = frombuffer(buffer, dtype=uint8).reshape(height, width, 4)
-    return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
-
+from PIL import ImageGrab
+def capture(handle):
+    win32gui.SendMessage(handle, win32con.WM_SYSCOMMAND, win32con.SC_RESTORE, 0)
+    # 发送还原最小化窗口的信息
+    win32gui.SetForegroundWindow(handle)
+    # 设为高亮
+    x1, y1, x2, y2 = get_window_pos(handle)
+    sleep(0.1)
+    # 截图（PIL格式）
+    img_pil = ImageGrab.grab((x1, y1, x2, y2))
+    # 转换为OpenCV格式（PIL是RGB，OpenCV需要BGR）
+    img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+    
+    # 如果需要展示验证（调试时可取消注释）
+    # cv2.imshow('Captured', img_cv)
+    # cv2.waitKey(0)
+    
+    return img_cv  # 返回OpenCV格式图像
+    
 # ---------------------- 图像匹配函数（增加可视化）----------------------
 import numpy as np
 def match_template(source_img, template_path, match_threshold=0.9):
@@ -200,7 +184,7 @@ def match_and_click(handle,source_root_handle,img_path:str,tolerance=0.95,test:b
     print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
-    img = capture(handle,scale_factor)
+    img = capture(handle)
     
     # 图像匹配
     target_pos, result_img = match_template(img, img_path, tolerance)
@@ -272,6 +256,34 @@ def execute(window_name, configs_path):
         
 
 
+
+def input_str(handle, text):
+    """
+    后台模拟键盘输入，向指定窗口句柄发送文本。
+
+    参数：
+        handle: 窗口句柄（HWND）
+        text: 要输入的文本（字符串）
+    """
+    # # 确保窗口置于前台（其实这个不应该由输入函数来管理）
+    # try:
+    #     win32gui.SetForegroundWindow(handle)
+    # except Exception as e:
+    #     print("设置窗口为前台失败:", e)
+    # sleep(1)
+    
+    # 遍历每个字符，发送 WM_CHAR 消息
+    # 可以后台输入
+    for ch in text:
+        # 发送单个字符消息
+        # 以下两种方法都可以，但暂时不清楚二者的区别
+        # win32api.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
+        win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
+        # 根据需要可以增加适当延时，以模拟自然的输入节奏
+        sleep(0.05)
+
+
+
 # 测试代码
 
 def test():
@@ -281,12 +293,13 @@ def test():
     # match_and_click(source_root_handle,source_root_handle,'Snipaste_2025-02-01_00-35-29.png',True)
     
     # print(get_scaling_factor())
-    execute('美食大战老鼠','1111.json')
-    
+    # execute('洛克童心智能辅助公测版Ver2.5.1',r'C:\Users\cy\Desktop\洛克挂机脚本\脚本.json')
+    input_str(1509162,"1784224018")
     # img=capture_image_png_once(handle)
     # cv2.imshow('img',img)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
+    pass
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":

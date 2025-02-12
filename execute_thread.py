@@ -1,4 +1,4 @@
-from function_faa import execute
+from function_for_everything import execute
 from PyQt5.QtCore import QObject, pyqtSignal
 import threading
 from time import sleep

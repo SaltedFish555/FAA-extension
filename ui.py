@@ -2,7 +2,6 @@
 # 忽略警告: libpng warning: iCCP: known incorrect sRGB profile
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
-
 import sys
 import json
 from PyQt5.QtWidgets import (
@@ -10,9 +9,64 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
-from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtCore import Qt, QSize, QTimer,QEvent,QObject, QTime
 
-from function_my import execute
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+# 初始化全局调度器
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+from execute_thread import ExecuteThread
+
+
+def create_param_group(label, default, decimals, suffix, is_float=True):
+    """创建 标签+SpinBox 组件。
+    
+    参数:
+        label (str): 标签的文本内容，显示在 QLabel 中。
+        default (int 或 float): 数值输入框的默认值。根据 is_float 决定是整数还是浮点数。
+        decimals (int): 小数位数（仅对 QDoubleSpinBox 有效）。
+        suffix (str): 数值输入框的后缀文本（例如单位 "px" 或 "%"）。
+        is_float (bool): 是否使用浮点数输入框（QDoubleSpinBox）。
+                        True 为浮点数，False 为整数。
+    """
+    group = QHBoxLayout()
+    group.setContentsMargins(0, 0, 0, 0)
+    group.setSpacing(5)
+    
+    lbl = QLabel(label)
+    lbl.setFixedWidth(60)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    group.addWidget(lbl)
+
+    # 根据 is_float 决定使用 QSpinBox 或 QDoubleSpinBox
+    if is_float:
+        spin = QDoubleSpinBox()
+        spin.setDecimals(decimals)
+    else:
+        spin = QSpinBox()
+
+    # 禁用滚轮事件的核心部分
+    class WheelFilter(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() == QEvent.Wheel:
+                return True  # 禁用滚轮事件
+            return super().eventFilter(obj, event)
+    
+    wheel_filter = WheelFilter(spin)
+    spin.installEventFilter(wheel_filter)  # 安装事件过滤器
+
+    spin.setValue(default)
+    spin.setFixedWidth(100)
+    if suffix:
+        spin.setSuffix(f" {suffix}")
+    group.addWidget(spin)
+
+    return group
+
+
+
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):
@@ -45,18 +99,18 @@ class ImageSettingsWidget(QWidget):
         param_layout.setContentsMargins(0, 0, 0, 0)
         param_layout.setSpacing(15)
 
-        self.tolerance_group = self.create_param_group("精度:", 0.95, 2, "")
+        self.tolerance_group = create_param_group("精度:", 0.95, 2, "")
         param_layout.addLayout(self.tolerance_group)
 
-        self.interval_group = self.create_param_group("间隔:", 0.10, 2, "秒")
+        self.interval_group = create_param_group("间隔:", 0.10, 2, "秒")
         param_layout.addLayout(self.interval_group)
 
-        self.timeout_group = self.create_param_group("超时:", 10.0, 2, "秒")
+        self.timeout_group = create_param_group("超时:", 10.0, 2, "秒")
         param_layout.addLayout(self.timeout_group)
 
         sleep_container = QHBoxLayout()
         sleep_container.addStretch()
-        self.sleep_group = self.create_param_group("休眠:", 0.50, 2, "秒")
+        self.sleep_group = create_param_group("休眠:", 0.50, 2, "秒")
         sleep_container.addLayout(self.sleep_group)
         param_layout.addLayout(sleep_container, stretch=1)
         
@@ -111,24 +165,7 @@ class ImageSettingsWidget(QWidget):
 
         self.browse_btn.clicked.connect(self.browse_image)
 
-    def create_param_group(self, label, default, decimals, suffix):
-        group = QHBoxLayout()
-        group.setContentsMargins(0, 0, 0, 0)
-        group.setSpacing(5)
-        
-        lbl = QLabel(label)
-        lbl.setFixedWidth(60)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        group.addWidget(lbl)
-        
-        spin = QDoubleSpinBox()
-        spin.setDecimals(decimals)
-        spin.setValue(default)
-        spin.setFixedWidth(100)
-        if suffix:
-            spin.setSuffix(f" {suffix}")
-        group.addWidget(spin)
-        return group
+
 
     def browse_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择模板图片", "", "PNG Files (*.png)")
@@ -213,6 +250,10 @@ class MainWindow(QMainWindow):
         self.save_btn.clicked.connect(self.save_config)
         bottom_btn_layout.addWidget(self.save_btn)
 
+        
+        self.loop_group=create_param_group("循环执行次数",1,0,"次",is_float=False)
+        bottom_btn_layout.addLayout(self.loop_group)
+
         bottom_btn_layout.addStretch()
 
         hwnd_label = QLabel("窗口名")
@@ -220,7 +261,9 @@ class MainWindow(QMainWindow):
 
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
-        self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠 | 小号1）")
+        
+        self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
+        self.window_name_edit.setText("洛克童心智能辅助公测版Ver2.5.1 | QQ：1784224018 | 频道ID：128 | 地图ID：13 | VIP：369")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -230,6 +273,60 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(bottom_btn_layout)
         self.resize(QSize(800, self.initial_height))
+        
+        # === 定时任务区域 ===
+        timer_layout = QHBoxLayout()
+        timer_layout.setContentsMargins(0, 0, 0, 0)
+        timer_layout.setSpacing(5)
+
+        # 标签“定时运行时间：”
+        timer_label = QLabel("定时运行时间：")
+        timer_label.setFixedWidth(100)
+        timer_layout.addWidget(timer_label)
+
+        # 编辑框
+        self.timer_edit = QLineEdit()
+        self.timer_edit.setPlaceholderText("输入时间点（如 08:00:00）")
+        timer_layout.addWidget(self.timer_edit)
+
+        # 按钮“启动定时任务”
+        self.start_timer_btn = QPushButton("启动定时任务")
+        self.start_timer_btn.setFixedWidth(120)
+        self.start_timer_btn.clicked.connect(self.start_timer_task)
+        timer_layout.addWidget(self.start_timer_btn)
+
+        # 将定时任务区域添加到主布局
+        main_layout.addLayout(timer_layout)
+
+
+    def start_timer_task(self):
+        """启动定时任务"""
+        try:
+            # 获取用户输入的时间
+            time_input = self.timer_edit.text().strip()
+            task_time = QTime.fromString(time_input, "hh:mm:ss")
+
+            if not task_time.isValid():
+                QMessageBox.warning(None, "警告", "请输入有效的时间点（格式如 08:00:00）")
+                return
+
+            # 提取小时、分钟、秒
+            hour = task_time.hour()
+            minute = task_time.minute()
+            second = task_time.second()
+
+            # 添加定时任务到调度器
+            scheduler.add_job(
+                self.execute_script,  # 定时执行的函数
+                CronTrigger(hour=hour, minute=minute, second=second),
+                id="daily_task",  # 任务 ID
+                replace_existing=True  # 如果有同名任务则替换
+            )
+
+            QMessageBox.information(None, "成功", f"定时任务已启动，将在每天 {time_input} 执行一次\n注意：请确保配置完成，建议先使用“执行脚本”进行测试，确保无误后再使用定时功能")
+
+        except Exception as e:
+            QMessageBox.warning(None, "错误", f"启动定时任务时出错：{str(e)}")
 
     def update_config_path(self, path):
         """ 更新当前配置路径显示 """
@@ -248,12 +345,15 @@ class MainWindow(QMainWindow):
         if not window_name:
             QMessageBox.warning(self, "警告", "请输入窗口名")
             return
-
-        try:
-            execute(window_name,self.current_config_path)
-            QMessageBox.information(self, "成功", "脚本执行已完成")
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"执行失败：{str(e)}")
+        loop_times=self.loop_group.itemAt(1).widget().value()
+        thread=ExecuteThread(window_name,self.current_config_path,loop_times)
+        thread.start()
+        
+        def show_message(title,text):
+            # 在主线程中显示消息框
+            QMessageBox.information(self, title, text)
+        # 连接信号到槽函数
+        thread.message_signal.connect(show_message)
 
     def update_max_height(self):
         screen_geo = QApplication.primaryScreen().availableGeometry()
