@@ -18,18 +18,29 @@ class ExecuteThread(threading.Thread,QObject):
     # PyQt 的元类无法在类定义阶段捕获和处理这些信号。
     # 最终生成的信号对象只是一个普通的 pyqtSignal 包装器，不具备 connect 或 emit 功能。
     message_signal = pyqtSignal(str, str)
-    def __init__(self,window_name, configs_path,loop_times):
+    def __init__(self,window_name, configs_path,loop_times,need_test=False):
         # 显式调用所有父类构造函数
         QObject.__init__(self)
         threading.Thread.__init__(self)
         self.window_name=window_name
         self.configs_path=configs_path
         self.loop_times=loop_times
+        self.need_test=need_test
+        self._running= True#标志位，用来安全中断线程
         
     def run(self):
+        self.is_running=True
         for _ in range(self.loop_times):
-            execute(self.window_name, self.configs_path)
-            sleep(1)
+            if not self._running: # 安全退出
+                self.message_signal.emit("失败", "脚本执行已被中断")
+                return  
+            execute(self.window_name, self.configs_path,self.need_test)
         self.message_signal.emit("成功", "脚本执行已完成")
+    
+    def stop(self):
+        """安全停止线程"""
+        self._running=False
         
         
+        
+

@@ -1,4 +1,3 @@
-
 # 忽略警告: libpng warning: iCCP: known incorrect sRGB profile
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
@@ -9,7 +8,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox
 )
-from PyQt5.QtCore import Qt, QSize, QTimer,QEvent,QObject, QTime
+from PyQt5.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -17,12 +16,12 @@ from apscheduler.triggers.cron import CronTrigger
 scheduler = BackgroundScheduler()
 scheduler.start()
 
-from execute_thread import ExecuteThread
+from function_for_everything import ExecuteThread
 
 
 def create_param_group(label, default, decimals, suffix, is_float=True):
     """创建 标签+SpinBox 组件。
-    
+
     参数:
         label (str): 标签的文本内容，显示在 QLabel 中。
         default (int 或 float): 数值输入框的默认值。根据 is_float 决定是整数还是浮点数。
@@ -64,8 +63,6 @@ def create_param_group(label, default, decimals, suffix, is_float=True):
     group.addWidget(spin)
 
     return group
-
-
 
 
 class ImageSettingsWidget(QWidget):
@@ -116,7 +113,7 @@ class ImageSettingsWidget(QWidget):
         
         main_layout.addLayout(param_layout)
 
-        # === 第三行：功能区域 ===
+        # === 第三行：功能区域（校验和截图区域） ===
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(8)
@@ -124,6 +121,12 @@ class ImageSettingsWidget(QWidget):
         self.check_template_check = QCheckBox("点击后校验")
         action_layout.addWidget(self.check_template_check)
 
+        # 在点击后校验后增加一个选择框“点击后输入”
+        self.check_click_input = QCheckBox("点击后输入")
+        action_layout.addWidget(self.check_click_input)
+        self.check_click_input.toggled.connect(self.on_click_input_toggled)
+
+        # 截图区域配置
         self.x1_spin = QSpinBox()
         self.y1_spin = QSpinBox()
         self.x2_spin = QSpinBox()
@@ -149,7 +152,22 @@ class ImageSettingsWidget(QWidget):
         action_layout.addLayout(area_layout)
         main_layout.addLayout(action_layout)
 
-        # === 操作按钮 ===
+        # === 第四行：点击后输入的编辑框（只有当勾选“点击后输入”时显示） ===
+        click_input_layout = QHBoxLayout()
+        click_input_layout.setContentsMargins(0, 0, 0, 0)
+        click_input_layout.setSpacing(5)
+        # 添加一个空白标签作为占位，与前面行对齐
+        spacer = QLabel()
+        spacer.setFixedWidth(60)
+        click_input_layout.addWidget(spacer)
+        
+        self.click_input_edit = QLineEdit()
+        self.click_input_edit.setPlaceholderText("请输入内容")
+        click_input_layout.addWidget(self.click_input_edit)
+        main_layout.addLayout(click_input_layout)
+        self.click_input_edit.setVisible(False)  # 初始状态下隐藏
+
+        # === 第五行：操作按钮 ===
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
@@ -165,7 +183,9 @@ class ImageSettingsWidget(QWidget):
 
         self.browse_btn.clicked.connect(self.browse_image)
 
-
+    def on_click_input_toggled(self, checked):
+        """当“点击后输入”复选框状态改变时，显示或隐藏输入框"""
+        self.click_input_edit.setVisible(checked)
 
     def browse_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择模板图片", "", "PNG Files (*.png)")
@@ -180,6 +200,8 @@ class ImageSettingsWidget(QWidget):
             "timeout": self.timeout_group.itemAt(1).widget().value(),
             "after_sleep": self.sleep_group.itemAt(1).widget().value(),
             "check_enabled": self.check_template_check.isChecked(),
+            "click_input_enabled": self.check_click_input.isChecked(),
+            "click_input": self.click_input_edit.text() if self.check_click_input.isChecked() else "",
             "source_range": [
                 self.x1_spin.value(),
                 self.y1_spin.value(),
@@ -188,6 +210,7 @@ class ImageSettingsWidget(QWidget):
             ]
         }
 
+from typing import Optional
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -198,6 +221,8 @@ class MainWindow(QMainWindow):
         self.current_config_path = None
         self.temp_config_path = "temp_config.json"
 
+        self.execute_thread:Optional[ExecuteThread]=None
+        
         self.init_ui()
         self.update_max_height()
 
@@ -250,9 +275,12 @@ class MainWindow(QMainWindow):
         self.save_btn.clicked.connect(self.save_config)
         bottom_btn_layout.addWidget(self.save_btn)
 
-        
-        self.loop_group=create_param_group("循环执行次数",1,0,"次",is_float=False)
+        # 循环执行次数
+        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False)
         bottom_btn_layout.addLayout(self.loop_group)
+        # 在循环执行次数的右边增加一个选择框“显示识图效果”
+        self.show_detection_effect_checkbox = QCheckBox("显示识图效果")
+        bottom_btn_layout.addWidget(self.show_detection_effect_checkbox)
 
         bottom_btn_layout.addStretch()
 
@@ -261,9 +289,8 @@ class MainWindow(QMainWindow):
 
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
-        
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("洛克童心智能辅助公测版Ver2.5.1 | QQ：1784224018 | 频道ID：128 | 地图ID：13 | VIP：369")
+        self.window_name_edit.setText("洛克童心智能辅助公测版Ver2.5.1")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -297,7 +324,6 @@ class MainWindow(QMainWindow):
 
         # 将定时任务区域添加到主布局
         main_layout.addLayout(timer_layout)
-
 
     def start_timer_task(self):
         """启动定时任务"""
@@ -336,7 +362,24 @@ class MainWindow(QMainWindow):
         self.current_config_label.setToolTip(display_text)
 
     def execute_script(self):
-        """ 执行脚本的核心方法 """
+        """ 执行脚本的核心方法，用来连接按钮 """
+        
+        # 结束执行
+        if self.execute_btn.text() == "结束脚本":
+            self.execute_btn.setText("结束中……")
+            self.execute_btn.setEnabled(False)  # 禁用按钮
+            QApplication.processEvents() # 刷新ui
+            
+            self.execute_thread.stop()  # 调用自己写的方法，让线程自己安全退出
+            self.execute_thread.join()  # 等待线程退出
+            self.execute_thread = None
+            self.execute_btn.setText("执行脚本")
+            self.execute_btn.setEnabled(True)  # 启动按钮
+            
+            
+            return 
+        
+        # 启动执行
         if not self.current_config_path:
             QMessageBox.warning(self, "警告", "请先保存配置或加载现有配置")
             return
@@ -345,15 +388,23 @@ class MainWindow(QMainWindow):
         if not window_name:
             QMessageBox.warning(self, "警告", "请输入窗口名")
             return
-        loop_times=self.loop_group.itemAt(1).widget().value()
-        thread=ExecuteThread(window_name,self.current_config_path,loop_times)
-        thread.start()
+
+        loop_times = self.loop_group.itemAt(1).widget().value()
         
-        def show_message(title,text):
+        # 获取“显示识图效果”复选框的状态
+        need_test = self.show_detection_effect_checkbox.isChecked()
+        
+        self.execute_btn.setText("结束脚本")
+        QApplication.processEvents()
+        # 创建执行线程，并将是否显示识图效果的状态赋值给线程的一个属性
+        self.execute_thread = ExecuteThread(window_name, self.current_config_path, loop_times, need_test)
+        self.execute_thread.start()
+        
+        def show_message(title, text):
             # 在主线程中显示消息框
             QMessageBox.information(self, title, text)
         # 连接信号到槽函数
-        thread.message_signal.connect(show_message)
+        self.execute_thread.message_signal.connect(show_message)
 
     def update_max_height(self):
         screen_geo = QApplication.primaryScreen().availableGeometry()
@@ -499,7 +550,11 @@ class MainWindow(QMainWindow):
         widget.y1_spin.setValue(source_range[1])
         widget.x2_spin.setValue(source_range[2])
         widget.y2_spin.setValue(source_range[3])
-
+        
+        # 恢复“点击后输入”部分的配置
+        widget.check_click_input.setChecked(data.get("click_input_enabled", False))
+        widget.click_input_edit.setText(data.get("click_input", ""))
+        widget.click_input_edit.setVisible(widget.check_click_input.isChecked())
 
 
 if __name__ == "__main__":

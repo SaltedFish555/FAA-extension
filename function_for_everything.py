@@ -181,7 +181,7 @@ def match_and_click(handle,source_root_handle,img_path:str,tolerance=0.95,test:b
     
     # 获取缩放比
     scale_factor = get_scaling_factor()
-    print(f"检测到缩放比例: {scale_factor:.2f}x")
+    # print(f"检测到缩放比例: {scale_factor:.2f}x")
     
     # 截图
     img = capture(handle)
@@ -207,16 +207,24 @@ def match_and_click(handle,source_root_handle,img_path:str,tolerance=0.95,test:b
     return True
 
 
-def loop_match_and_click(handle,img_path:str,tolerance=0.95,interval=0.2,timeout=10.0,after_sleep=0.5,check_enabled=False,source_range=[0,0,2000,2000],test:bool=False):
+def loop_match_and_click(handle,img_path:str,tolerance=0.95,interval=0.2,timeout=10.0,after_sleep=0.5,check_enabled=False,source_range=[0,0,2000,2000],test:bool=False,event_stop=None):
+    
     spend_time=0.0
     match_succeeded=False
     while spend_time<=timeout and not match_succeeded:
+        if event_stop and event_stop.is_set():
+            return
         match_succeeded=match_and_click(handle,handle,img_path,tolerance,test)
         sleep(interval)
         spend_time+=interval
-        
-        
-    sleep(after_sleep)
+    
+    # 这样写是为了能够中断进程
+    # 因为after_sleep可能很大，如果直接sleep(after_sleep)就无法中断
+    while after_sleep>0:
+        if event_stop and event_stop.is_set():
+            return
+        sleep(min(1,after_sleep))
+        after_sleep-=1
     
     # 检查点击后是否跳转（可以检查点击后是否还能识别到原来的图片，但这样写容易出bug，因此暂时不写）
     # 未跳转成功则重新进行匹配，递归即可
@@ -229,6 +237,7 @@ def loop_match_and_click(handle,img_path:str,tolerance=0.95,interval=0.2,timeout
 
 import json
 from time import sleep
+import pyautogui
 
 def load_config(config_path):
     """读取JSON配置文件"""
@@ -236,8 +245,8 @@ def load_config(config_path):
         return json.load(f)
     
     
-def execute(window_name, configs_path):
-    """执行自动化脚本流程"""
+def execute(window_name, configs_path,need_test=False):
+    """执行自动化脚本流程，暂被弃用"""
     source_root_handle=get_window_handle(window_name)
     configs=load_config(configs_path)
     for step_config in configs:
@@ -251,15 +260,83 @@ def execute(window_name, configs_path):
             after_sleep = step_config["after_sleep"],
             check_enabled=step_config["check_enabled"],
             source_range=step_config["source_range"],
-            test=True
+            test=need_test
         )
+        if step_config["click_input_enabled"]:
+            # 通过模拟按下按键来进行输入（好处是无需句柄，坏处是需要保证在前台且获取到焦点）
+            pyautogui.write(step_config["click_input"], interval=0.05)  
         
+
+
+from PyQt5.QtCore import QObject, pyqtSignal
+import threading
+from time import sleep
+class ExecuteThread(threading.Thread,QObject):
+    """
+    用于执行脚本的线程类，执行完成后会弹出提示框，使用多线程是为了保证ui窗口不被阻塞。
+    
+    继承QObject是为了使用 PyQt 的信号槽机制，从而实现线程间通信（尤其是子线程与主线程的 GUI 交互），
+    因为Qt限制了只能在主线程使用消息框，因此要用信号槽机制来实现消息框提示
+    """
+    # 定义一个信号，用于传递消息，注意不能写在__init__函数里
+    # 因为：
+    # PyQt 的信号是通过 元类（MetaClass） 和 类属性声明 实现的。
+    # 当你在类作用域中声明 pyqtSignal 时，PyQt 的元类会在类定义阶段自动处理这些信号，将它们转换为合法的信号对象，并赋予它们 emit() 和 connect() 等方法。
+    # 而如果信号定义在 __init__ 中：
+    # 它们会成为 实例属性，而非类属性。
+    # PyQt 的元类无法在类定义阶段捕获和处理这些信号。
+    # 最终生成的信号对象只是一个普通的 pyqtSignal 包装器，不具备 connect 或 emit 功能。
+    message_signal = pyqtSignal(str, str)
+    def __init__(self,window_name, configs_path,loop_times,need_test=False):
+        # 显式调用所有父类构造函数
+        QObject.__init__(self)
+        threading.Thread.__init__(self)
+        self.window_name=window_name
+        self.configs_path=configs_path
+        self.loop_times=loop_times
+        self.need_test=need_test
+        self._event_stop=threading.Event() #标志位，用来安全中断线程
+        
+    def run(self):
+        for _ in range(self.loop_times):
+            source_root_handle=get_window_handle(self.window_name)
+            configs=load_config(self.configs_path)
+            for step_config in configs:
+                if self._event_stop.is_set(): # 安全退出
+                    self.message_signal.emit("失败", "脚本执行已被中断")
+                    return 
+                # 获取当前步骤配置参数
+                # 执行匹配点击操作
+                loop_match_and_click(
+                    handle=source_root_handle, 
+                    img_path=step_config["template_path"],
+                    interval=step_config["interval"],
+                    timeout=step_config["timeout"],
+                    after_sleep = step_config["after_sleep"],
+                    check_enabled=step_config["check_enabled"],
+                    source_range=step_config["source_range"],
+                    test=self.need_test,
+                    event_stop=self._event_stop
+                )
+                if step_config["click_input_enabled"]:
+                    # 通过模拟按下按键来进行输入（好处是无需句柄，坏处是需要保证在前台且获取到焦点）
+                    pyautogui.write(step_config["click_input"], interval=0.05)  
+        self.message_signal.emit("成功", "脚本执行已完成")
+    
+    def stop(self):
+        """安全停止线程"""
+        self._event_stop.set()
+        
+        
+        
+
+
 
 
 
 def input_str(handle, text):
     """
-    后台模拟键盘输入，向指定窗口句柄发送文本。
+    后台模拟键盘输入，向指定窗口句柄发送文本。(需要正确的浏览器句柄，因此并未使用)
 
     参数：
         handle: 窗口句柄（HWND）
@@ -293,8 +370,8 @@ def test():
     # match_and_click(source_root_handle,source_root_handle,'Snipaste_2025-02-01_00-35-29.png',True)
     
     # print(get_scaling_factor())
-    # execute('洛克童心智能辅助公测版Ver2.5.1',r'C:\Users\cy\Desktop\洛克挂机脚本\脚本.json')
-    input_str(1509162,"1784224018")
+    execute('洛克童心智能辅助公测版Ver2.5.1',r'C:\Users\cy\Desktop\洛克挂机脚本\脚本.json')
+    # input_str(1509162,"1784224018")
     # img=capture_image_png_once(handle)
     # cv2.imshow('img',img)
     # cv2.waitKey(0)
