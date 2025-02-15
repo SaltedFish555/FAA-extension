@@ -115,12 +115,12 @@ class ImageSettingsWidget(QWidget):
         self.interval_group = create_param_group("间隔:", 0.10, 2, "秒")
         param_layout.addLayout(self.interval_group)
 
-        self.timeout_group = create_param_group("超时:", 10.0, 2, "秒")
+        self.timeout_group = create_param_group("超时:", 10.0, 2, "秒", maximum=9999)
         param_layout.addLayout(self.timeout_group)
 
         sleep_container = QHBoxLayout()
         sleep_container.addStretch()
-        self.sleep_group = create_param_group("休眠:", 0.50, 2, "秒")
+        self.sleep_group = create_param_group("休眠:", 0.50, 2, "秒", maximum=9999)
         sleep_container.addLayout(self.sleep_group)
         param_layout.addLayout(sleep_container, stretch=1)
         
@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addWidget(self.save_btn)
 
         # 循环执行次数
-        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False)
+        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999)
         bottom_btn_layout.addLayout(self.loop_group)
         # 在循环执行次数的右边增加一个选择框“显示识图效果”
         self.show_detection_effect_checkbox = QCheckBox("显示识图效果")
