@@ -21,8 +21,8 @@ from function_faa import ExecuteThread
 
 def create_param_group(label_text, default, decimals, suffix, \
     is_float=True,
-    minimum=None,
-    maximum=None,
+    minimum=0,
+    maximum=9999,
     label_fixed_width=60,
     spin_fixed_width=100):
     """创建 标签+SpinBox 组件。
@@ -55,10 +55,8 @@ def create_param_group(label_text, default, decimals, suffix, \
         spin.setDecimals(decimals)
     else:
         spin = QSpinBox()
-    if minimum:
-        spin.setMinimum(minimum)
-    if maximum:
-        spin.setMaximum(maximum)
+    spin.setMinimum(minimum)
+    spin.setMaximum(maximum)
     # 禁用滚轮事件的核心部分
     class WheelFilter(QObject):
         def eventFilter(self, obj, event):
