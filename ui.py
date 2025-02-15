@@ -16,10 +16,15 @@ from apscheduler.triggers.cron import CronTrigger
 scheduler = BackgroundScheduler()
 scheduler.start()
 
-from function_for_everything import ExecuteThread
+from function_faa import ExecuteThread
 
 
-def create_param_group(label, default, decimals, suffix, is_float=True):
+def create_param_group(label_text, default, decimals, suffix, \
+    is_float=True,
+    minimum=None,
+    maximum=None,
+    label_fixed_width=60,
+    spin_fixed_width=100):
     """创建 标签+SpinBox 组件。
 
     参数:
@@ -29,15 +34,20 @@ def create_param_group(label, default, decimals, suffix, is_float=True):
         suffix (str): 数值输入框的后缀文本（例如单位 "px" 或 "%"）。
         is_float (bool): 是否使用浮点数输入框（QDoubleSpinBox）。
                         True 为浮点数，False 为整数。
+        minimum(int or float): 最小值
+        maximum(int or float): 最大值
+        label_fixed_width=60: 标签组件的固定宽度
+        spin_fixed_width=100: 数字框组件的固定宽度
     """
     group = QHBoxLayout()
     group.setContentsMargins(0, 0, 0, 0)
     group.setSpacing(5)
     
-    lbl = QLabel(label)
-    lbl.setFixedWidth(60)
-    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
-    group.addWidget(lbl)
+    label = QLabel(label_text)
+    label.setFixedWidth(label_fixed_width)
+    # 下面这行带阿米是设置文本向左对齐，但设置了之后文本好像会向上偏一点，不美观，而且不设置好像也自动向左对齐了
+    # label.setAlignment(Qt.AlignmentFlag.AlignLeft) 
+    group.addWidget(label)
 
     # 根据 is_float 决定使用 QSpinBox 或 QDoubleSpinBox
     if is_float:
@@ -45,7 +55,10 @@ def create_param_group(label, default, decimals, suffix, is_float=True):
         spin.setDecimals(decimals)
     else:
         spin = QSpinBox()
-
+    if minimum:
+        spin.setMinimum(minimum)
+    if maximum:
+        spin.setMaximum(maximum)
     # 禁用滚轮事件的核心部分
     class WheelFilter(QObject):
         def eventFilter(self, obj, event):
@@ -57,7 +70,7 @@ def create_param_group(label, default, decimals, suffix, is_float=True):
     spin.installEventFilter(wheel_filter)  # 安装事件过滤器
 
     spin.setValue(default)
-    spin.setFixedWidth(100)
+    spin.setFixedWidth(spin_fixed_width)
     if suffix:
         spin.setSuffix(f" {suffix}")
     group.addWidget(spin)
@@ -127,29 +140,19 @@ class ImageSettingsWidget(QWidget):
         self.check_click_input.toggled.connect(self.on_click_input_toggled)
 
         # 截图区域配置
-        self.x1_spin = QSpinBox()
-        self.y1_spin = QSpinBox()
-        self.x2_spin = QSpinBox()
-        self.y2_spin = QSpinBox()
-
-        area_layout = QHBoxLayout()
-        area_layout.setSpacing(4)
-        area_layout.addWidget(QLabel("截图区域:"))
-        coordinates = [
-            ("X1", self.x1_spin), ("Y1", self.y1_spin),
-            ("X2", self.x2_spin), ("Y2", self.y2_spin)
-        ]
-        for text, spin in coordinates:
-            spin.setRange(0, 9999)
-            spin.setFixedWidth(60)
-            spin.setAlignment(Qt.AlignmentFlag.AlignRight)
-            area_layout.addWidget(QLabel(text))
-            area_layout.addWidget(spin)
+        action_layout.addWidget(QLabel("截图区域:"))
+        self.x1_group = create_param_group("X1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.y1_group = create_param_group("Y1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.x2_group = create_param_group("X2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.y2_group = create_param_group("Y2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        action_layout.addLayout(self.x1_group)
+        action_layout.addLayout(self.y1_group)
+        action_layout.addLayout(self.x2_group)
+        action_layout.addLayout(self.y2_group)
         
-        coordinates[2][1].setValue(2000)
-        coordinates[3][1].setValue(2000)
         
-        action_layout.addLayout(area_layout)
+        
+        
         main_layout.addLayout(action_layout)
 
         # === 第四行：点击后输入的编辑框（只有当勾选“点击后输入”时显示） ===
@@ -203,10 +206,10 @@ class ImageSettingsWidget(QWidget):
             "click_input_enabled": self.check_click_input.isChecked(),
             "click_input": self.click_input_edit.text() if self.check_click_input.isChecked() else "",
             "source_range": [
-                self.x1_spin.value(),
-                self.y1_spin.value(),
-                self.x2_spin.value(),
-                self.y2_spin.value()
+                self.x1_group.itemAt(1).widget().value(),
+                self.y1_group.itemAt(1).widget().value(),
+                self.x2_group.itemAt(1).widget().value(),
+                self.y2_group.itemAt(1).widget().value()
             ]
         }
 
@@ -290,7 +293,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("洛克童心智能辅助公测版Ver2.5.1")
+        self.window_name_edit.setText("789 | 美食大战老鼠")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -422,6 +425,7 @@ class MainWindow(QMainWindow):
         def show_message(title, text):
             # 在主线程中显示消息框
             QMessageBox.information(self, title, text)
+            self.execute_btn.setText("执行脚本")
         # 连接信号到槽函数
         self.execute_thread.message_signal.connect(show_message)
 
@@ -565,10 +569,10 @@ class MainWindow(QMainWindow):
         widget.sleep_group.itemAt(1).widget().setValue(data.get("after_sleep", 0.5))
         
         source_range = data.get("source_range", [0, 0, 0, 0])
-        widget.x1_spin.setValue(source_range[0])
-        widget.y1_spin.setValue(source_range[1])
-        widget.x2_spin.setValue(source_range[2])
-        widget.y2_spin.setValue(source_range[3])
+        widget.x1_group.itemAt(1).widget().setValue(source_range[0])
+        widget.y1_group.itemAt(1).widget().setValue(source_range[1])
+        widget.x2_group.itemAt(1).widget().setValue(source_range[2])
+        widget.y2_group.itemAt(1).widget().setValue(source_range[3])
         
         # 恢复“点击后输入”部分的配置
         widget.check_click_input.setChecked(data.get("click_input_enabled", False))

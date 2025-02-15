@@ -467,7 +467,8 @@ def loop_match_p_in_w(
         after_click_template=None,
         after_click_template_mask=None,
         source_root_handle=None,
-        event_stop=None
+        event_stop=None,
+        test=False
 ) -> bool:
     """
     根据句柄截图, 并在截图中寻找一个较小的图片资源.
@@ -502,6 +503,8 @@ def loop_match_p_in_w(
             mask=template_mask,
             match_tolerance=match_tolerance,
             source_root_handle=source_root_handle,
+            test_show=test,
+            test_print=test,
             )
         if find_target:
             break
@@ -552,7 +555,7 @@ def load_config(config_path):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
     
-def execute(window_name, configs_path,event_stop=None):
+def execute(window_name, configs_path,need_test=False,event_stop=None):
     """执行自动化脚本流程"""
     source_root_handle,handle=get_window_handle(window_name)
     configs=load_config(configs_path)
@@ -574,7 +577,8 @@ def execute(window_name, configs_path,event_stop=None):
             source_range=step_config["source_range"],
             after_click_template=after_click_template,
             after_sleep = step_config["after_sleep"],
-            event_stop,
+            event_stop=event_stop,
+            test=need_test
         )
 
 import threading
