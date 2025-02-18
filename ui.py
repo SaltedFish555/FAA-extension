@@ -213,14 +213,15 @@ class ImageSettingsWidget(QWidget):
 
 class TextEditRedirector:
     """用于将print的内容写入到自定义的text_edit编辑框"""
-    def __init__(self, text_edit):
+    def __init__(self, text_edit:QTextEdit):
         self.text_edit = text_edit
         self.original_stdout = sys.stdout  # 保存原始的标准输出
 
-    def write(self, message):
+    def write(self, message:str):
         """ 将消息输出到 QTextEdit 和终端 """
+        message = message.rstrip('\n') # 删掉尾部的换行符，否则QTextEdit会多一个空行
         self.text_edit.append(message)  # 将输出显示在 QTextEdit 中
-        self.original_stdout.write(message)  # 同时输出到终端
+        self.original_stdout.write(message+"\n")  # 同时输出到终端
 
     def flush(self):
         """ 需要实现 flush 方法，因为 sys.stdout 需要它 """
@@ -295,7 +296,7 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addWidget(self.save_btn)
 
         # 循环执行次数
-        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999)
+        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999,spin_fixed_width=60)
         bottom_btn_layout.addLayout(self.loop_group)
         # 在循环执行次数的右边增加一个选择框“显示识图效果”
         self.show_detection_effect_checkbox = QCheckBox("显示识图效果")
@@ -345,19 +346,21 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(timer_layout)
         
         # === 底部日志区域 ===
+        # “日志输出”标签
         self.log_label = QLabel("日志输出:")
         self.log_label.setStyleSheet("color: #333; font-weight: bold;")
         main_layout.addWidget(self.log_label)
 
         # 创建 QTextEdit 用于显示长文本
         self.log_output = QTextEdit()
-        self.log_output.setText("这是一些很长的文本，应该能够超出文本框的高度并显示垂直滚动条...\n" * 10)
+        self.log_output.setText("")
         self.log_output.setWordWrapMode(1)  # 启用自动换行
         self.log_output.setMinimumHeight(100)  # 设置最小高度
         self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
         # 重定向标准输出到 QTextEdit
         sys.stdout = TextEditRedirector(self.log_output)
         
+        # 将底部日志区域添加到主布局
         main_layout.addWidget(self.log_output)
         
 
@@ -390,7 +393,7 @@ class MainWindow(QMainWindow):
                 replace_existing=True  # 如果有同名任务则替换
             )
 
-            QMessageBox.information(None, "成功", f"定时任务已启动，将在每天 {time_input} 执行一次\n注意：请确保配置完成，建议先使用“执行脚本”进行测试，确保无误后再使用定时功能")
+            print(f"定时任务已启动，将在每天 {time_input} 执行一次\n注意：请确保配置完成，建议先使用“执行脚本”进行测试，确保无误后再使用定时功能")
 
         except Exception as e:
             QMessageBox.warning(None, "错误", f"启动定时任务时出错：{str(e)}")
@@ -534,7 +537,7 @@ class MainWindow(QMainWindow):
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
             self.update_config_path(file_path)
-            QMessageBox.information(self, "成功", "配置保存成功！")
+            print("保存配置成功")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"保存文件时出错：{str(e)}")
 
@@ -602,7 +605,5 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
-    window.log_output.setText("aaaaaaaaaaaaaaaaaaaaaaaaaaa")
-
     window.show()
     sys.exit(app.exec())
