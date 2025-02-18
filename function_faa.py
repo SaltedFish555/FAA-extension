@@ -609,6 +609,7 @@ class ExecuteThread(threading.Thread,QObject):
         self.loop_times=loop_times
         self.need_test=need_test
         self._event_stop=threading.Event() #标志位，用来安全中断线程
+        print("执行器")
         
     def run(self):
         for _ in range(self.loop_times):

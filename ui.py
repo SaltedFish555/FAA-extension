@@ -6,7 +6,7 @@ import json
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
-    QMessageBox, QCheckBox, QLabel, QSpinBox
+    QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit
 )
 from PyQt5.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
 
@@ -211,6 +211,24 @@ class ImageSettingsWidget(QWidget):
             ]
         }
 
+class TextEditRedirector:
+    """用于将print的内容写入到自定义的text_edit编辑框"""
+    def __init__(self, text_edit):
+        self.text_edit = text_edit
+        self.original_stdout = sys.stdout  # 保存原始的标准输出
+
+    def write(self, message):
+        """ 将消息输出到 QTextEdit 和终端 """
+        self.text_edit.append(message)  # 将输出显示在 QTextEdit 中
+        self.original_stdout.write(message)  # 同时输出到终端
+
+    def flush(self):
+        """ 需要实现 flush 方法，因为 sys.stdout 需要它 """
+        pass
+
+
+
+
 from typing import Optional
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -331,18 +349,21 @@ class MainWindow(QMainWindow):
         self.log_label.setStyleSheet("color: #333; font-weight: bold;")
         main_layout.addWidget(self.log_label)
 
-        self.log_output = QLabel("")
-        self.log_output.setStyleSheet("background: #f5f5f5; border: 1px solid #ccc; padding: 5px;")
-        self.log_output.setWordWrap(True)
-        self.log_output.setMinimumHeight(50)
+        # 创建 QTextEdit 用于显示长文本
+        self.log_output = QTextEdit()
+        self.log_output.setText("这是一些很长的文本，应该能够超出文本框的高度并显示垂直滚动条...\n" * 10)
+        self.log_output.setWordWrapMode(1)  # 启用自动换行
+        self.log_output.setMinimumHeight(100)  # 设置最小高度
+        self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
+        # 重定向标准输出到 QTextEdit
+        sys.stdout = TextEditRedirector(self.log_output)
+        
         main_layout.addWidget(self.log_output)
+        
+
     
     
-    @staticmethod
-    def printlog(msg: str):
-        """ 静态方法，其他类可以用 MainWindow.printlog("xxx") 调用 """
-        if MainWindow.log_label:
-            MainWindow.log_label.setText(f"日志输出：{msg}")
+
     
     
     def start_timer_task(self):
@@ -581,5 +602,7 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
+    window.log_output.setText("aaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
     window.show()
     sys.exit(app.exec())
