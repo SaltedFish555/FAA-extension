@@ -386,7 +386,7 @@ class MainWindow(QMainWindow):
 
         # 创建 QTextEdit 用于显示长文本
         self.log_output = QTextEdit()
-        self.log_output.setText("")
+        self.log_output.setText("欢迎使用自定义识图插件。\n你可以在网站：https://stareabyss.github.io/FAA-WebSite/guide/start/自定义识图脚本教程.html 中查看使用教程。\n\n注意：当你使用别人发给你的配置文件时，记得修改配置中的图片路径，保证其与你的电脑一致")
         self.log_output.setWordWrapMode(1)  # 启用自动换行
         self.log_output.setMinimumHeight(100)  # 设置最小高度
         self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
@@ -394,7 +394,6 @@ class MainWindow(QMainWindow):
         # 注意：保存实例到 self.stdout_redirector 以防被垃圾回收
         self.stdout_redirector = TextEditRedirector(self.log_output)
         sys.stdout = self.stdout_redirector
-        print("aaaaaaaaaaaaaaaaaaaaaaaaaa")
         
         # 将底部日志区域添加到主布局
         main_layout.addWidget(self.log_output)
