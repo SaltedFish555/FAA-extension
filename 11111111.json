@@ -11,8 +11,8 @@
     "source_range": [
       0,
       0,
-      0,
-      0
+      2000,
+      2000
     ]
   },
   {
@@ -27,8 +27,8 @@
     "source_range": [
       0,
       0,
-      0,
-      0
+      2000,
+      2000
     ]
   },
   {
@@ -43,24 +43,8 @@
     "source_range": [
       0,
       0,
-      0,
-      0
-    ]
-  },
-  {
-    "template_path": "",
-    "tolerance": 0.95,
-    "interval": 0.1,
-    "timeout": 10.0,
-    "after_sleep": 0.5,
-    "check_enabled": false,
-    "click_input_enabled": false,
-    "click_input": "",
-    "source_range": [
-      0,
-      0,
-      0,
-      0
+      2000,
+      2000
     ]
   }
 ]

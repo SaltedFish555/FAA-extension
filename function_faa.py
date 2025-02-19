@@ -567,7 +567,8 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
         after_click_template=None
         if step_config["check_enabled"]:
             after_click_template=step_config["template_path"]
-        loop_match_p_in_w(
+        
+        result=loop_match_p_in_w(
             source_handle=handle,
             source_root_handle=source_root_handle,
             match_tolerance=step_config["tolerance"],
@@ -580,6 +581,13 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             event_stop=event_stop,
             test=need_test
         )
+        
+        if result:
+            print(f"识别图片【{step_config['template_path']}】成功")
+        else:
+            print(f"识别图片【{step_config['template_path']}】失败")
+            
+        
 
 import threading
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -609,13 +617,13 @@ class ExecuteThread(threading.Thread,QObject):
         self.loop_times=loop_times
         self.need_test=need_test
         self._event_stop=threading.Event() #标志位，用来安全中断线程
-        print("执行器")
         
     def run(self):
-        for _ in range(self.loop_times):
+        for i in range(self.loop_times):
             if self._event_stop.is_set(): # 安全退出
                 self.message_signal.emit("失败", "脚本执行已被中断")
                 return  
+            print(f"第{i+1}次执行中")
             execute(self.window_name, self.configs_path,self.need_test,self._event_stop)
         self.message_signal.emit("成功", "脚本执行已完成")
     

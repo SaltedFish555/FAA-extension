@@ -183,6 +183,13 @@ class ImageSettingsWidget(QWidget):
         main_layout.addLayout(btn_layout)
 
         self.browse_btn.clicked.connect(self.browse_image)
+        
+        # === 第六行：分割线 ==
+        # 创建一个自定义的分割线
+        line = QLabel()
+        line.setFixedHeight(1)
+        line.setStyleSheet("background-color: gray;")
+        main_layout.addWidget(line)
 
     def on_click_input_toggled(self, checked):
         """当“点击后输入”复选框状态改变时，显示或隐藏输入框"""
@@ -211,21 +218,36 @@ class ImageSettingsWidget(QWidget):
             ]
         }
 
-class TextEditRedirector:
-    """用于将print的内容写入到自定义的text_edit编辑框"""
-    def __init__(self, text_edit:QTextEdit):
-        self.text_edit = text_edit
-        self.original_stdout = sys.stdout  # 保存原始的标准输出
+from PyQt5.QtCore import pyqtSignal
 
-    def write(self, message:str):
-        """ 将消息输出到 QTextEdit 和终端 """
-        message = message.rstrip('\n') # 删掉尾部的换行符，否则QTextEdit会多一个空行
-        self.text_edit.append(message)  # 将输出显示在 QTextEdit 中
-        self.original_stdout.write(message+"\n")  # 同时输出到终端
+class TextEditRedirector(QObject):
+    """用于将 print 的内容写入到自定义的 text_edit 编辑框，采用信号跨线程发送"""
+    append_text_signal = pyqtSignal(str)
+
+    def __init__(self, text_edit: QTextEdit):
+        super().__init__()
+        self.text_edit = text_edit
+        # 保存原始的标准输出，这里最好用 sys.__stdout__ 避免重定向后的影响
+        self.original_stdout = sys.__stdout__
+        # 将信号连接到 QTextEdit 的 append 方法上（保证在主线程调用）
+        self.append_text_signal.connect(self.text_edit.append)
+
+    def write(self, message: str):
+        """
+        将消息输出到 QTextEdit 和终端
+        注意：使用信号保证在主线程中更新 QTextEdit
+        """
+        # 删除尾部的换行符，避免 QTextEdit 显示多余的空行
+        message = message.rstrip('\n')
+        # 通过信号发射消息，确保在主线程中调用 text_edit.append(message)
+        self.append_text_signal.emit(message)
+        # 同时将消息输出到原始的 stdout（终端）
+        self.original_stdout.write(message + "\n")
 
     def flush(self):
-        """ 需要实现 flush 方法，因为 sys.stdout 需要它 """
+        """实现 flush 方法，因为 sys.stdout 需要它"""
         pass
+
 
 
 
@@ -234,7 +256,7 @@ from typing import Optional
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("点击配置管理器")
+        self.setWindowTitle("自定义识图插件")
         self.setMinimumWidth(800)
         self.initial_height = 200
         self.config_widgets = []
@@ -270,12 +292,27 @@ class MainWindow(QMainWindow):
         
         main_layout.addLayout(path_display_layout)
 
-        self.add_btn = QPushButton("添加配置")
+        config_btn_layout = QHBoxLayout()
+        self.open_btn = QPushButton("打开配置")
+        self.open_btn.clicked.connect(self.load_config)
+        config_btn_layout.addWidget(self.open_btn)
+
+        self.save_btn = QPushButton("保存配置")
+        self.save_btn.clicked.connect(self.save_config)
+        config_btn_layout.addWidget(self.save_btn)
+
+        self.save_as_btn = QPushButton("将配置另存为")
+        self.save_as_btn.clicked.connect(self.save_as_config)
+        config_btn_layout.addWidget(self.save_as_btn)
+        main_layout.addLayout(config_btn_layout)
+
+        self.add_btn = QPushButton("添加配置项")
         self.add_btn.clicked.connect(lambda: self.add_config())
         main_layout.addWidget(self.add_btn)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
+        self.scroll.setMinimumHeight(250)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_content = QWidget()
         self.scroll_layout = QVBoxLayout(self.scroll_content)
@@ -287,16 +324,10 @@ class MainWindow(QMainWindow):
         # === 底部按钮布局 ===
         bottom_btn_layout = QHBoxLayout()
         
-        self.open_btn = QPushButton("打开配置")
-        self.open_btn.clicked.connect(self.load_config)
-        bottom_btn_layout.addWidget(self.open_btn)
 
-        self.save_btn = QPushButton("保存配置")
-        self.save_btn.clicked.connect(self.save_config)
-        bottom_btn_layout.addWidget(self.save_btn)
 
         # 循环执行次数
-        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999,spin_fixed_width=60)
+        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999,label_fixed_width=100,spin_fixed_width=60)
         bottom_btn_layout.addLayout(self.loop_group)
         # 在循环执行次数的右边增加一个选择框“显示识图效果”
         self.show_detection_effect_checkbox = QCheckBox("显示识图效果")
@@ -357,8 +388,11 @@ class MainWindow(QMainWindow):
         self.log_output.setWordWrapMode(1)  # 启用自动换行
         self.log_output.setMinimumHeight(100)  # 设置最小高度
         self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
-        # 重定向标准输出到 QTextEdit
-        sys.stdout = TextEditRedirector(self.log_output)
+        # 使用新的 TextEditRedirector 重定向标准输出到 QTextEdit
+        # 注意：保存实例到 self.stdout_redirector 以防被垃圾回收
+        self.stdout_redirector = TextEditRedirector(self.log_output)
+        sys.stdout = self.stdout_redirector
+
         
         # 将底部日志区域添加到主布局
         main_layout.addWidget(self.log_output)
@@ -526,7 +560,21 @@ class MainWindow(QMainWindow):
         else:
             self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+    
     def save_config(self):
+        if not self.current_config_path:
+            self.save_as_config()
+        else:
+            config_data = [w.get_data() for w in self.config_widgets]
+            
+            try:
+                with open(self.current_config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_data, f, ensure_ascii=False, indent=2)
+                print("保存配置成功")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"保存文件时出错：{str(e)}")
+
+    def save_as_config(self):
         config_data = [w.get_data() for w in self.config_widgets]
         file_path, _ = QFileDialog.getSaveFileName(
             self, "保存配置文件", "", "JSON Files (*.json)"
@@ -577,6 +625,7 @@ class MainWindow(QMainWindow):
                 self.max_window_height
             ))
             self.force_scroll_to_bottom()
+            print("打开配置成功")
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载配置文件失败：{str(e)}")
