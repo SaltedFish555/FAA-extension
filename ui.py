@@ -241,8 +241,10 @@ class TextEditRedirector(QObject):
         message = message.rstrip('\n')
         # 通过信号发射消息，确保在主线程中调用 text_edit.append(message)
         self.append_text_signal.emit(message)
-        # 同时将消息输出到原始的 stdout（终端）
-        self.original_stdout.write(message + "\n")
+        
+        # 检查是否有终端输出流，有的话就同时将消息输出到原始的 stdout（终端）（不检查的话在打包后运行exe时会报错）
+        if self.original_stdout:
+            self.original_stdout.write(message + "\n")
 
     def flush(self):
         """实现 flush 方法，因为 sys.stdout 需要它"""
@@ -392,7 +394,7 @@ class MainWindow(QMainWindow):
         # 注意：保存实例到 self.stdout_redirector 以防被垃圾回收
         self.stdout_redirector = TextEditRedirector(self.log_output)
         sys.stdout = self.stdout_redirector
-
+        print("aaaaaaaaaaaaaaaaaaaaaaaaaa")
         
         # 将底部日志区域添加到主布局
         main_layout.addWidget(self.log_output)
