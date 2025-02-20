@@ -37,7 +37,7 @@ def get_scaling_factor():
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
     """增强版窗口查找函数"""
-    source_root_handle = win32gui.FindWindow("DUIWindow",name)
+    source_root_handle = win32gui.FindWindow(None,name)
     if source_root_handle == 0:
         # 尝试枚举窗口
         def callback(source_root_handle, extra):
@@ -52,7 +52,9 @@ def get_window_handle(name):
     handle = win32gui.FindWindowEx(handle, None, "CefBrowserWindow", "")      
     handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
     handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
-    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
+    handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "") 
+    if not handle:
+        handle=source_root_handle
     return source_root_handle,handle
 
 # ---------------------- 截图函数（保持原样）----------------------
@@ -89,30 +91,8 @@ def capture_image_png_once(handle: HWND):
     # return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB) # 这里比起FAA原版有一点修改，在返回前先做了图像处理
     return image # 原版
 
-# ---------------------- 图像匹配函数（增加可视化）----------------------
-def match_template(source_img, template_path, match_threshold=0.9):
-    template = cv2.imread(template_path)
-    if template is None:
-        raise Exception(f"无法读取模板图像: {template_path}")
+
     
-    h, w = template.shape[:2]
-    result = cv2.matchTemplate(source_img, template, cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, max_loc = cv2.minMaxLoc(result)
-    
-    if max_val < match_threshold:
-        return None, source_img
-    
-    top_left = max_loc
-    center = (top_left[0] + w//2, top_left[1] + h//2)
-    
-    # 增强可视化标记
-    marked_img = source_img.copy()
-    cv2.rectangle(marked_img, top_left, (top_left[0]+w, top_left[1]+h), (0,255,0), 2)
-    cv2.circle(marked_img, center, 5, (0,0,255), -1)
-    cv2.putText(marked_img, f"Confidence: {max_val:.2f}", (10,30), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,0,0), 2)
-    
-    return center, marked_img
 
 def restore_window_if_minimized(handle) -> bool:
     """
@@ -445,14 +425,19 @@ def match_p_in_w(
         end_y = start_y + template.shape[0]
         # 在图像上绘制边框
         cv2.rectangle(img=source_img, pt1=(start_x, start_y), pt2=(end_x, end_y), color=(0, 0, 255), thickness=1)
-        # 显示输出图像
-        cv2.imshow(winname="SourceImg.png", mat=source_img)
-        cv2.waitKey(0)
+        # 绘制边框中心点
+        cv2.circle(source_img, center_point, 2, (0,0,255), -1)
+        # # 显示输出图像
+        # cv2.imshow(winname="SourceImg.png", mat=source_img)
+        # cv2.waitKey(0)
+        return [center_point[0],center_point[1],source_img]
+    return center_point
 
-    if return_center:
-        return center_point
-    else:
-        return [start_x, start_y]
+    # 弃用，全改为中心点，偏移让用户自己算
+    # if return_center:
+    #     return center_point
+    # else:
+    #     return [start_x, start_y]
 
 import time
 
@@ -470,6 +455,10 @@ def loop_match_p_in_w(
         after_click_template=None,
         after_click_template_mask=None,
         source_root_handle=None,
+        offset_enabled=False,
+        offset_x=0,
+        offset_y=0,
+        
         event_stop=None,
         test=False
 ) -> bool:
@@ -522,8 +511,22 @@ def loop_match_p_in_w(
     if not click:
         time.sleep(after_sleep)
         return True
-
-    do_left_mouse_click(source_handle,find_target[0] + source_range[0],find_target[1] + source_range[1])
+    x=find_target[0] + source_range[0]
+    y=find_target[1] + source_range[1]
+    if offset_enabled:
+        x+=offset_x
+        y+=offset_y
+    
+    if test:
+        # # 显示输出图像
+        # 绘制偏移后的点
+        cv2.circle(find_target[2], (x,y), 2, (0,0,255), -1)
+        
+        cv2.imshow(winname="SourceImg.png", mat=find_target[2])
+        cv2.waitKey(0)
+        
+    
+    do_left_mouse_click(source_handle,x,y)
 
     if after_click_template is None:
         # 不需要检查是否切换到另一个界面
@@ -581,6 +584,9 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             source_range=step_config["source_range"],
             after_click_template=after_click_template,
             after_sleep = step_config["after_sleep"],
+            offset_enabled=step_config["check_offset_enabled"],
+            offset_x=step_config["offset_x"],
+            offset_y=step_config["offset_y"],
             event_stop=event_stop,
             test=need_test
         )
@@ -589,6 +595,11 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             print(f"识别图片【{step_config['template_path']}】成功")
         else:
             print(f"识别图片【{step_config['template_path']}】失败")
+        
+        if step_config["click_input_enabled"]:
+            for ch in step_config["click_input"]:
+                win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
+                sleep(0.05)
             
         
 
@@ -659,4 +670,4 @@ def test():
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
-    execute("Browser",'1111.json')
+    execute("美食大战老鼠",'点击qq头像.json',need_test=True)

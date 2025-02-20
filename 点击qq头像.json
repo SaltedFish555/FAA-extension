@@ -1,6 +1,6 @@
 [
   {
-    "template_path": "C:/Users/cy/Desktop/签到脚本/qq头像.png",
+    "template_path": "C:/Users/cy/Desktop/签到脚本/976431852qwe.png",
     "tolerance": 0.9,
     "interval": 0.1,
     "timeout": 10.0,
@@ -8,6 +8,9 @@
     "check_enabled": false,
     "click_input_enabled": false,
     "click_input": "",
+    "check_offset_enabled": true,
+    "offset_x": 0,
+    "offset_y": 40,
     "source_range": [
       0,
       0,

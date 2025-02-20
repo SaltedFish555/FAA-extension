@@ -18,63 +18,64 @@ scheduler.start()
 
 from function_faa import ExecuteThread
 
-
-def create_param_group(label_text, default, decimals, suffix, \
-    is_float=True,
-    minimum=0,
-    maximum=9999,
-    label_fixed_width=60,
-    spin_fixed_width=100):
-    """创建 标签+SpinBox 组件。
-
-    参数:
-        label (str): 标签的文本内容，显示在 QLabel 中。
-        default (int 或 float): 数值输入框的默认值。根据 is_float 决定是整数还是浮点数。
-        decimals (int): 小数位数（仅对 QDoubleSpinBox 有效）。
-        suffix (str): 数值输入框的后缀文本（例如单位 "px" 或 "%"）。
-        is_float (bool): 是否使用浮点数输入框（QDoubleSpinBox）。
-                        True 为浮点数，False 为整数。
-        minimum(int or float): 最小值
-        maximum(int or float): 最大值
-        label_fixed_width=60: 标签组件的固定宽度
-        spin_fixed_width=100: 数字框组件的固定宽度
-    """
-    group = QHBoxLayout()
-    group.setContentsMargins(0, 0, 0, 0)
-    group.setSpacing(5)
+class ParamGroupWidget(QWidget):
+    # valueChanged = pyqtSignal(float)  # 统一信号，方便后续扩展
     
-    label = QLabel(label_text)
-    label.setFixedWidth(label_fixed_width)
-    # 下面这行带阿米是设置文本向左对齐，但设置了之后文本好像会向上偏一点，不美观，而且不设置好像也自动向左对齐了
-    # label.setAlignment(Qt.AlignmentFlag.AlignLeft) 
-    group.addWidget(label)
+    def __init__(self, 
+                label_text, 
+                default, 
+                decimals, 
+                suffix, 
+                is_float=True,
+                minimum=0,
+                maximum=9999,
+                label_fixed_width=60,
+                spin_fixed_width=100):
+        super().__init__()
+        
+        # 创建水平布局
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
 
-    # 根据 is_float 决定使用 QSpinBox 或 QDoubleSpinBox
-    if is_float:
-        spin = QDoubleSpinBox()
-        spin.setDecimals(decimals)
-    else:
-        spin = QSpinBox()
-    spin.setMinimum(minimum)
-    spin.setMaximum(maximum)
-    # 禁用滚轮事件的核心部分
-    class WheelFilter(QObject):
-        def eventFilter(self, obj, event):
-            if event.type() == QEvent.Wheel:
-                return True  # 禁用滚轮事件
-            return super().eventFilter(obj, event)
+        # 标签部分
+        self.label = QLabel(label_text)
+        self.label.setFixedWidth(label_fixed_width)
+        layout.addWidget(self.label)
+
+        # 数值输入部分
+        if is_float:
+            self.spin = QDoubleSpinBox()
+            self.spin.setDecimals(decimals)
+        else:
+            self.spin = QSpinBox()
+        
+        # 设置公共属性
+        self.spin.setRange(minimum, maximum)
+        self.spin.setValue(default)
+        self.spin.setFixedWidth(spin_fixed_width)
+        if suffix:
+            self.spin.setSuffix(f" {suffix}")
+
+        # 禁用滚轮
+        self.spin.installEventFilter(self._create_wheel_filter())
+        layout.addWidget(self.spin)
+
+    def _create_wheel_filter(self):
+        class WheelFilter(QObject):
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Wheel:
+                    return True
+                return super().eventFilter(obj, event)
+        return WheelFilter(self.spin)
+
+    @property
+    def value(self):
+        return self.spin.value()
     
-    wheel_filter = WheelFilter(spin)
-    spin.installEventFilter(wheel_filter)  # 安装事件过滤器
-
-    spin.setValue(default)
-    spin.setFixedWidth(spin_fixed_width)
-    if suffix:
-        spin.setSuffix(f" {suffix}")
-    group.addWidget(spin)
-
-    return group
-
+    @value.setter
+    def value(self, val):
+        self.spin.setValue(val)
 
 class ImageSettingsWidget(QWidget):
     def __init__(self):
@@ -107,19 +108,19 @@ class ImageSettingsWidget(QWidget):
         param_layout.setContentsMargins(0, 0, 0, 0)
         param_layout.setSpacing(15)
 
-        self.tolerance_group = create_param_group("精度:", 0.95, 2, "")
-        param_layout.addLayout(self.tolerance_group)
+        self.tolerance_group = ParamGroupWidget("精度:", 0.95, 2, "")
+        param_layout.addWidget(self.tolerance_group)
 
-        self.interval_group = create_param_group("间隔:", 0.10, 2, "秒")
-        param_layout.addLayout(self.interval_group)
+        self.interval_group = ParamGroupWidget("间隔:", 0.10, 2, "秒")
+        param_layout.addWidget(self.interval_group)
 
-        self.timeout_group = create_param_group("超时:", 10.0, 2, "秒", maximum=9999)
-        param_layout.addLayout(self.timeout_group)
+        self.timeout_group = ParamGroupWidget("超时:", 10.0, 2, "秒", maximum=9999)
+        param_layout.addWidget(self.timeout_group)
 
         sleep_container = QHBoxLayout()
         sleep_container.addStretch()
-        self.sleep_group = create_param_group("休眠:", 0.50, 2, "秒", maximum=9999)
-        sleep_container.addLayout(self.sleep_group)
+        self.sleep_group = ParamGroupWidget("休眠:", 0.50, 2, "秒", maximum=9999)
+        sleep_container.addWidget(self.sleep_group)
         param_layout.addLayout(sleep_container, stretch=1)
         
         main_layout.addLayout(param_layout)
@@ -137,37 +138,65 @@ class ImageSettingsWidget(QWidget):
         action_layout.addWidget(self.check_click_input)
         self.check_click_input.toggled.connect(self.on_click_input_toggled)
 
+            # 新增：偏移相关设置
+        self.check_offset_enabled = QCheckBox("是否偏移")
+        action_layout.addWidget(self.check_offset_enabled)
+        self.check_offset_enabled.toggled.connect(self.on_offset_toggled)
+        
+
+
         # 截图区域配置
         action_layout.addWidget(QLabel("截图区域:"))
-        self.x1_group = create_param_group("X1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
-        self.y1_group = create_param_group("Y1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
-        self.x2_group = create_param_group("X2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
-        self.y2_group = create_param_group("Y2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
-        action_layout.addLayout(self.x1_group)
-        action_layout.addLayout(self.y1_group)
-        action_layout.addLayout(self.x2_group)
-        action_layout.addLayout(self.y2_group)
+        self.x1_group = ParamGroupWidget("X1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.y1_group = ParamGroupWidget("Y1:", 0, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.x2_group = ParamGroupWidget("X2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        self.y2_group = ParamGroupWidget("Y2:", 2000, 0, "",is_float=False, label_fixed_width=20,spin_fixed_width=60)
+        action_layout.addWidget(self.x1_group)
+        action_layout.addWidget(self.y1_group)
+        action_layout.addWidget(self.x2_group)
+        action_layout.addWidget(self.y2_group)
         
         
-        
-        
+
+
+
+
+
         main_layout.addLayout(action_layout)
+
+        
+
 
         # === 第四行：点击后输入的编辑框（只有当勾选“点击后输入”时显示） ===
         click_input_layout = QHBoxLayout()
         click_input_layout.setContentsMargins(0, 0, 0, 0)
         click_input_layout.setSpacing(5)
         # 添加一个空白标签作为占位，与前面行对齐
-        spacer = QLabel()
-        spacer.setFixedWidth(60)
-        click_input_layout.addWidget(spacer)
-        
+        self.label_input = QLabel("输入内容：")
+        self.label_input.setFixedWidth(60)
+        self.label_input.setVisible(False)
+        click_input_layout.addWidget(self.label_input)
+
         self.click_input_edit = QLineEdit()
         self.click_input_edit.setPlaceholderText("请输入内容")
         click_input_layout.addWidget(self.click_input_edit)
+        
+        
+        # 偏移x
+        self.offset_x_group = ParamGroupWidget("偏移x:", 0, 0, "", is_float=False, minimum=-2000, label_fixed_width=60, spin_fixed_width=60)
+        click_input_layout.addWidget(self.offset_x_group)
+        self.offset_x_group.setVisible(False)  # 初始状态下隐藏
+        
+        self.offset_y_group = ParamGroupWidget("偏移y:", 0, 0, "", is_float=False, minimum=-2000, label_fixed_width=60, spin_fixed_width=60)
+        click_input_layout.addWidget(self.offset_y_group)
+        self.offset_y_group.setVisible(False)  # 初始状态下隐藏
+        
+        
         main_layout.addLayout(click_input_layout)
         self.click_input_edit.setVisible(False)  # 初始状态下隐藏
-
+        
+        
+        
         # === 第五行：操作按钮 ===
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -194,7 +223,13 @@ class ImageSettingsWidget(QWidget):
     def on_click_input_toggled(self, checked):
         """当“点击后输入”复选框状态改变时，显示或隐藏输入框"""
         self.click_input_edit.setVisible(checked)
+        self.label_input.setVisible(checked)
 
+    def on_offset_toggled(self, checked):
+        """当“点击后输入”复选框状态改变时，显示或隐藏输入框"""
+        self.offset_x_group.setVisible(checked)
+        self.offset_y_group.setVisible(checked)
+    
     def browse_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择模板图片", "", "PNG Files (*.png)")
         if path:
@@ -203,18 +238,24 @@ class ImageSettingsWidget(QWidget):
     def get_data(self):
         return {
             "template_path": self.image_path_edit.text(),
-            "tolerance": self.tolerance_group.itemAt(1).widget().value(),
-            "interval": self.interval_group.itemAt(1).widget().value(),
-            "timeout": self.timeout_group.itemAt(1).widget().value(),
-            "after_sleep": self.sleep_group.itemAt(1).widget().value(),
+            "tolerance": self.tolerance_group.value,
+            "interval": self.interval_group.value,
+            "timeout": self.timeout_group.value,
+            "after_sleep": self.sleep_group.value,
+            
+            
             "check_enabled": self.check_template_check.isChecked(),
             "click_input_enabled": self.check_click_input.isChecked(),
             "click_input": self.click_input_edit.text() if self.check_click_input.isChecked() else "",
+            "check_offset_enabled":self.check_offset_enabled.isCheckable(),
+            "offset_x": self.offset_x_group.value if  self.offset_x_group.value else 0,
+            "offset_y": self.offset_y_group.value if self.offset_y_group.value else 0,
+            
             "source_range": [
-                self.x1_group.itemAt(1).widget().value(),
-                self.y1_group.itemAt(1).widget().value(),
-                self.x2_group.itemAt(1).widget().value(),
-                self.y2_group.itemAt(1).widget().value()
+                self.x1_group.value,
+                self.y1_group.value,
+                self.x2_group.value,
+                self.y2_group.value
             ]
         }
 
@@ -329,8 +370,8 @@ class MainWindow(QMainWindow):
 
 
         # 循环执行次数
-        self.loop_group = create_param_group("循环执行次数", 1, 0, "次", is_float=False, maximum=9999,label_fixed_width=100,spin_fixed_width=60)
-        bottom_btn_layout.addLayout(self.loop_group)
+        self.loop_group = ParamGroupWidget("循环执行次数", 1, 0, "次", is_float=False, maximum=9999,label_fixed_width=100,spin_fixed_width=60)
+        bottom_btn_layout.addWidget(self.loop_group)
         # 在循环执行次数的右边增加一个选择框“显示识图效果”
         self.show_detection_effect_checkbox = QCheckBox("显示识图效果")
         bottom_btn_layout.addWidget(self.show_detection_effect_checkbox)
@@ -343,7 +384,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("Browser")
+        self.window_name_edit.setText("美食大战老鼠")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -468,7 +509,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "请输入窗口名")
             return
 
-        loop_times = self.loop_group.itemAt(1).widget().value()
+        loop_times = self.loop_group.value
         
         # 获取“显示识图效果”复选框的状态
         need_test = self.show_detection_effect_checkbox.isChecked()
@@ -611,7 +652,7 @@ class MainWindow(QMainWindow):
                 self._apply_config_data(new_config, item)
                 self.scroll_layout.addWidget(new_config)
                 self.config_widgets.append(new_config)
-                
+                 
                 new_config.delete_btn.clicked.connect(
                     lambda _, w=new_config: self.remove_config(w)
                 )
@@ -630,26 +671,38 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载配置文件失败：{str(e)}")
-
-    def _apply_config_data(self, widget, data):
+    def _apply_config_data(self, widget:ImageSettingsWidget, data:dict):
+        """将配置数据应用到指定的 ImageSettingsWidget 实例中"""
+        # 图片路径
         widget.image_path_edit.setText(data.get("template_path", ""))
+        
+        # 复选框状态
         widget.check_template_check.setChecked(data.get("check_enabled", False))
         
-        widget.tolerance_group.itemAt(1).widget().setValue(data.get("tolerance", 0.95))
-        widget.interval_group.itemAt(1).widget().setValue(data.get("interval", 0.1))
-        widget.timeout_group.itemAt(1).widget().setValue(data.get("timeout", 10.0))
-        widget.sleep_group.itemAt(1).widget().setValue(data.get("after_sleep", 0.5))
+        # 数值参数组
+        widget.tolerance_group.value = data.get("tolerance", 0.95)
+        widget.interval_group.value = data.get("interval", 0.1)
+        widget.timeout_group.value = data.get("timeout", 10.0)
+        widget.sleep_group.value = data.get("after_sleep", 0.5)
         
+        # 截图区域
         source_range = data.get("source_range", [0, 0, 0, 0])
-        widget.x1_group.itemAt(1).widget().setValue(source_range[0])
-        widget.y1_group.itemAt(1).widget().setValue(source_range[1])
-        widget.x2_group.itemAt(1).widget().setValue(source_range[2])
-        widget.y2_group.itemAt(1).widget().setValue(source_range[3])
+        widget.x1_group.value = source_range[0]
+        widget.y1_group.value = source_range[1]
+        widget.x2_group.value = source_range[2]
+        widget.y2_group.value = source_range[3]
         
-        # 恢复“点击后输入”部分的配置
+        # 点击后输入相关配置
         widget.check_click_input.setChecked(data.get("click_input_enabled", False))
         widget.click_input_edit.setText(data.get("click_input", ""))
         widget.click_input_edit.setVisible(widget.check_click_input.isChecked())
+        
+        # 点击位置偏移相关配置
+        widget.check_offset_enabled.setChecked(data.get("check_offset_enabled", False))
+        widget.offset_x_group.value = data.get("offset_x", 0)
+        widget.offset_x_group.setVisible(widget.check_offset_enabled.isChecked())
+        widget.offset_y_group.value = data.get("offset_y", 0)
+        widget.offset_y_group.setVisible(widget.check_offset_enabled.isChecked())
 
 
 if __name__ == "__main__":

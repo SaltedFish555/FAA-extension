@@ -6,6 +6,11 @@
     "timeout": 10.0,
     "after_sleep": 0.5,
     "check_enabled": false,
+    "click_input_enabled": false,
+    "click_input": "",
+    "check_offset_enabled": true,
+    "offset_x": 3333,
+    "offset_y": 0,
     "source_range": [
       0,
       0,
