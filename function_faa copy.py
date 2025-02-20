@@ -4,7 +4,6 @@ import win32con, win32gui, win32api
 import cv2
 from numpy import uint8, frombuffer
 import numpy as np
-
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
     """执行动作函数 子函数"""
@@ -14,7 +13,6 @@ def do_left_mouse_click( handle, x, y):
     # 对于部分窗口，win32con.MK_LBUTTON也可以写为0，但有的窗口必须写，否则会无法正常点击
     win32api.PostMessage(handle, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, point)
     win32api.PostMessage(handle, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON, point)
-
 
 def do_left_mouse_move_to( handle, x, y):
     """执行动作函数 子函数"""
@@ -37,7 +35,8 @@ def get_scaling_factor():
 # ---------------------- 窗口操作函数 ----------------------
 def get_window_handle(name):
     """增强版窗口查找函数"""
-    source_root_handle = win32gui.FindWindow("DUIWindow",name)
+    # return 132860,132860
+    source_root_handle = win32gui.FindWindow(None,name)
     if source_root_handle == 0:
         # 尝试枚举窗口
         def callback(source_root_handle, extra):
@@ -53,7 +52,7 @@ def get_window_handle(name):
     handle = win32gui.FindWindowEx(handle, None, "Chrome_WidgetWin_0", "")  
     handle = win32gui.FindWindowEx(handle, None, "WrapperNativeWindowClass", "")  
     handle = win32gui.FindWindowEx(handle, None, "NativeWindowClass", "")  
-    return source_root_handle,handle
+    return source_root_handle,source_root_handle
 
 # ---------------------- 截图函数（保持原样）----------------------
 def capture_image_png_once(handle: HWND):
@@ -401,7 +400,7 @@ def match_p_in_w(
         source_img = png_cropping(image=source_img, raw_range=source_range)
     # 若为BGRA -> BGR
     source_img = source_img[:, :, :3]
-    # cv2.imshow('a',source_img)
+    # cv2.imshow('source image',source_img)
     # cv2.waitKey(0)
     
     # 根据 路径 或者 numpy.array 选择是否读取
@@ -659,4 +658,4 @@ def test():
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
-    execute("Browser",'1111.json')
+    execute("Browser",r'点击qq头像.json',need_test=False)

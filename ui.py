@@ -343,7 +343,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("789 | 美食大战老鼠")
+        self.window_name_edit.setText("Browser")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
