@@ -3,12 +3,13 @@ import os
 os.environ["PYTHONWARNINGS"] = "ignore::libpng warning"
 import sys
 import json
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
     QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit
 )
-from PyQt5.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
+from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
+from PyQt6.QtGui import QTextOption
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -64,7 +65,7 @@ class ParamGroupWidget(QWidget):
     def _create_wheel_filter(self):
         class WheelFilter(QObject):
             def eventFilter(self, obj, event):
-                if event.type() == QEvent.Wheel:
+                if event.type() == QEvent.Type.Wheel:
                     return True
                 return super().eventFilter(obj, event)
         return WheelFilter(self.spin)
@@ -259,7 +260,7 @@ class ImageSettingsWidget(QWidget):
             ]
         }
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 
 class TextEditRedirector(QObject):
     """用于将 print 的内容写入到自定义的 text_edit 编辑框，采用信号跨线程发送"""
@@ -428,7 +429,7 @@ class MainWindow(QMainWindow):
         # 创建 QTextEdit 用于显示长文本
         self.log_output = QTextEdit()
         self.log_output.setText("欢迎使用自定义识图插件。\n你可以在网站：https://stareabyss.github.io/FAA-WebSite/guide/start/自定义识图脚本教程.html 中查看使用教程。\n\n注意：当你使用别人发给你的配置文件时，记得修改配置中的图片路径，保证其与你的电脑一致")
-        self.log_output.setWordWrapMode(1)  # 启用自动换行
+        self.log_output.setWordWrapMode(QTextOption.WrapMode.WordWrap)   # 启用自动换行
         self.log_output.setMinimumHeight(100)  # 设置最小高度
         self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
         # 使用新的 TextEditRedirector 重定向标准输出到 QTextEdit

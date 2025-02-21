@@ -604,7 +604,7 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
         
 
 import threading
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 class ExecuteThread(threading.Thread,QObject):
     """
