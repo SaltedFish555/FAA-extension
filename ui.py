@@ -71,6 +71,7 @@ class Codecode_editWindow(QDialog):
 
         # 其他配置
         code_edit.setAutoIndent(True)  # 自动缩进
+        code_edit.setIndentationWidth(4)
         code_edit.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch)  # 括号匹配
         code_edit.setText(code)
         
@@ -410,7 +411,7 @@ from typing import Optional
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("自定义识图插件")
+        self.setWindowTitle("FAA - 自定义识图插件")
         self.setMinimumWidth(900)
         self.initial_height = 200
         self.config_widgets:Optional[list[ImageSettingsWidget]] = []

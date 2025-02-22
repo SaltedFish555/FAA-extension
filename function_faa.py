@@ -5,6 +5,16 @@ import cv2
 from numpy import uint8, frombuffer
 import numpy as np
 
+def input_str(handle,input:str,interval_time=0.05):
+    """向窗口中输入字符串"""
+    for ch in input:
+        win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
+        sleep(0.05)
+
+
+
+
+
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
     """执行动作函数 子函数"""
@@ -597,10 +607,8 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             print(f"识别图片【{step_config['template_path']}】失败")
         
         # 点击后输入内容
-        if step_config["click_input_enabled"]:
-            for ch in step_config["click_input"]:
-                win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
-                sleep(0.05)
+        input_str(step_config["click_input"])
+
         
         # 最后运行代码
         if step_config["check_run_code"]:
