@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (
     QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit, QDialog,QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
-from PyQt6.QtGui import QTextOption, QFont
+from PyQt6.QtGui import QTextOption, QColor, QFont
+from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -19,7 +20,9 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 
 from function_faa import ExecuteThread
-class CodeEditorWindow(QDialog):
+
+
+class Codecode_editWindow(QDialog):
     def __init__(self, parent=None, code=""):
         super().__init__(parent)
         self.setWindowTitle("代码编辑器")
@@ -34,12 +37,8 @@ class CodeEditorWindow(QDialog):
         self.lbl_code = QLabel("代码：")
         layout.addWidget(self.lbl_code)
 
-        # 代码编辑区域（保持图片样式）
-        self.code_edit = QTextEdit()
-        self.code_edit.setFont(QFont("Monospace", 10))
-        self.code_edit.setWordWrapMode(QTextOption.WrapMode.NoWrap)
-        self.code_edit.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.code_edit.setPlainText(code)  # 直接设置初始代码
+        # 代码编辑区域
+        self.code_edit = self.init_edit(code)
         layout.addWidget(self.code_edit)
 
         # 添加确认/取消按钮（符合图片简洁风格）
@@ -50,16 +49,42 @@ class CodeEditorWindow(QDialog):
         btn_box.rejected.connect(self.reject)  # 点击 Cancel 触发 Rejected
         layout.addWidget(btn_box)
 
+    def init_edit(self,code):
+        code_edit= QsciScintilla()
+        
+        font = QFont("Consolas", 12)  # 字体名称和大小
+        # code_edit.setFont(font) # 设置默认字体（这种方法不会生效，必须通过 lexer 设置字体）
+        
+        # 启用行号
+        code_edit.setMarginsBackgroundColor(QColor("#f0f0f0"))
+        code_edit.setMarginWidth(0, "0000")  # 设置行号栏宽度
+        code_edit.setMarginLineNumbers(0, True)  # 显示行号
+
+        # 设置 Python 语法高亮
+        lexer = QsciLexerPython()
+        lexer.setFont(font)  # 通过 lexer 设置字体
+        code_edit.setLexer(lexer)
+        
+
+        # 启用代码折叠
+        code_edit.setFolding(QsciScintilla.FoldStyle.PlainFoldStyle)
+
+        # 其他配置
+        code_edit.setAutoIndent(True)  # 自动缩进
+        code_edit.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch)  # 括号匹配
+        code_edit.setText(code)
+        
+
+        return code_edit
+
     def get_code(self) -> str:
         """获取编辑框中的代码内容"""
-        return self.code_edit.toPlainText()  
+        return self.code_edit.text()  
     
-
-
 
     def set_code(self, code: str):
         """设置编辑框中的代码内容"""
-        self.code_edit.setPlainText(code)
+        self.code_edit.setText(code)
 
 
 
@@ -262,10 +287,10 @@ class ImageSettingsWidget(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        self.btn_open_code_editor=QPushButton("编辑代码")
-        self.btn_open_code_editor.setFixedWidth(100)
-        self.btn_open_code_editor.clicked.connect(self.show_code_editor)
-        btn_layout.addWidget(self.btn_open_code_editor)
+        self.btn_open_code_code_edit=QPushButton("编辑代码")
+        self.btn_open_code_code_edit.setFixedWidth(100)
+        self.btn_open_code_code_edit.clicked.connect(self.show_code_code_edit)
+        btn_layout.addWidget(self.btn_open_code_code_edit)
         
         self.insert_after_btn = QPushButton("向后插入")
         self.insert_after_btn.setFixedWidth(100)
@@ -286,12 +311,12 @@ class ImageSettingsWidget(QWidget):
         line.setStyleSheet("background-color: gray;")
         main_layout.addWidget(line)
 
-    def show_code_editor(self):
+    def show_code_code_edit(self):
         """显示代码编辑器窗口，编辑完后把代码存入code属性"""
-        editor = CodeEditorWindow(self)
-        editor.set_code(self.code)  # 可选：设置初始代码
-        if editor.exec() == QDialog.DialogCode.Accepted:
-            code = editor.get_code()
+        code_edit = Codecode_editWindow(self)
+        code_edit.set_code(self.code)  # 可选：设置初始代码
+        if code_edit.exec() == QDialog.DialogCode.Accepted:
+            code = code_edit.get_code()
             self.code=code
             print("编辑的代码已记录，别忘了保存配置")
             

@@ -18,7 +18,7 @@
       2000,
       2000
     ],
-    "code": "11111111111"
+    "code": "print(\"hello world\")\r\n\r\n\r\n\r\nhel\r\n\r\n\r\n\r\n\r\n\r\n"
   },
   {
     "template_path": "",
