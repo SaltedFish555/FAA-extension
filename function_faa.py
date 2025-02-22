@@ -8,12 +8,12 @@ import numpy as np
 # ---------------------- 新版点击函数集成 ----------------------
 def do_left_mouse_click( handle, x, y):
     """执行动作函数 子函数"""
-    x = int(x )
-    y = int(y )
+    x = int(x)
+    y = int(y)
     point = win32api.MAKELONG(x, y)
     # 对于部分窗口，win32con.MK_LBUTTON也可以写为0，但有的窗口必须写，否则会无法正常点击
     win32api.PostMessage(handle, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, point)
-    win32api.PostMessage(handle, win32con.WM_LBUTTONUP, win32con.MK_LBUTTON, point)
+    win32api.PostMessage(handle, win32con.WM_LBUTTONUP, 0, point)
 
 
 def do_left_mouse_move_to( handle, x, y):
@@ -596,11 +596,15 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
         else:
             print(f"识别图片【{step_config['template_path']}】失败")
         
+        # 点击后输入内容
         if step_config["click_input_enabled"]:
             for ch in step_config["click_input"]:
                 win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
                 sleep(0.05)
-            
+        
+        # 最后运行代码
+        if step_config["check_run_code"]:
+            exec(step_config["code"])
         
 
 import threading
@@ -670,4 +674,9 @@ def test():
     
 # # ---------------------- 主程序 ----------------------
 if __name__ == "__main__":
-    execute("美食大战老鼠",'点击qq头像.json',need_test=True)
+    code_str="""
+
+execute("美食大战老鼠",'点击qq头像.json',need_test=True)
+
+    """
+    exec(code_str)

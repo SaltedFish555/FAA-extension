@@ -1,6 +1,6 @@
 [
   {
-    "template_path": "C:/Users/cy/Desktop/签到脚本/976431852qwe.png",
+    "template_path": "I:/MyCode/FAA-extension/1.png",
     "tolerance": 0.9,
     "interval": 0.1,
     "timeout": 10.0,
@@ -8,14 +8,16 @@
     "check_enabled": false,
     "click_input_enabled": false,
     "click_input": "",
-    "check_offset_enabled": true,
+    "check_offset_enabled": false,
+    "check_run_code": true,
     "offset_x": 0,
-    "offset_y": 40,
+    "offset_y": 0,
     "source_range": [
       0,
       0,
       2000,
       2000
-    ]
+    ],
+    "code": ""
   }
 ]

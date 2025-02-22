@@ -6,18 +6,65 @@ import json
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QDoubleSpinBox, QScrollArea, QFileDialog, 
-    QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit
+    QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit, QDialog,QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
-from PyQt6.QtGui import QTextOption
+from PyQt6.QtGui import QTextOption, QFont
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+
 # 初始化全局调度器
 scheduler = BackgroundScheduler()
 scheduler.start()
 
 from function_faa import ExecuteThread
+class CodeEditorWindow(QDialog):
+    def __init__(self, parent=None, code=""):
+        super().__init__(parent)
+        self.setWindowTitle("代码编辑器")
+        self.setMinimumSize(600, 400)
+        
+        # 设置主布局
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        # 代码标签
+        self.lbl_code = QLabel("代码：")
+        layout.addWidget(self.lbl_code)
+
+        # 代码编辑区域（保持图片样式）
+        self.code_edit = QTextEdit()
+        self.code_edit.setFont(QFont("Monospace", 10))
+        self.code_edit.setWordWrapMode(QTextOption.WrapMode.NoWrap)
+        self.code_edit.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.code_edit.setPlainText(code)  # 直接设置初始代码
+        layout.addWidget(self.code_edit)
+
+        # 添加确认/取消按钮（符合图片简洁风格）
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btn_box.accepted.connect(self.accept)  # 点击 OK 触发 Accepted
+        btn_box.rejected.connect(self.reject)  # 点击 Cancel 触发 Rejected
+        layout.addWidget(btn_box)
+
+    def get_code(self) -> str:
+        """获取编辑框中的代码内容"""
+        return self.code_edit.toPlainText()  
+    
+
+
+
+    def set_code(self, code: str):
+        """设置编辑框中的代码内容"""
+        self.code_edit.setPlainText(code)
+
+
+
+
+
 
 class ParamGroupWidget(QWidget):
     # valueChanged = pyqtSignal(float)  # 统一信号，方便后续扩展
@@ -79,16 +126,25 @@ class ParamGroupWidget(QWidget):
         self.spin.setValue(val)
 
 class ImageSettingsWidget(QWidget):
-    def __init__(self):
+    def __init__(self, index: int):
         super().__init__()
+        self.index = index  # 直接接收索引参数
+        self.code=""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(8)
-
+        
+        
+        
         # === 第一行：图片路径 ===
+        
         path_layout = QHBoxLayout()
         path_layout.setContentsMargins(0, 0, 0, 0)
         path_layout.setSpacing(5)
+        
+        # 在布局中添加显示索引的标签
+        self.index_label = QLabel(f"配置项{self.index + 1}")
+        path_layout.addWidget(self.index_label)
         
         self.template_label = QLabel("图片路径:")
         self.template_label.setFixedWidth(60)
@@ -139,11 +195,15 @@ class ImageSettingsWidget(QWidget):
         action_layout.addWidget(self.check_click_input)
         self.check_click_input.toggled.connect(self.on_click_input_toggled)
 
-            # 新增：偏移相关设置
+        # 新增：偏移相关设置
         self.check_offset_enabled = QCheckBox("是否偏移")
         action_layout.addWidget(self.check_offset_enabled)
         self.check_offset_enabled.toggled.connect(self.on_offset_toggled)
         
+        # 新增：结束后运行代码
+        self.check_run_code=QCheckBox("结束后运行代码")
+        action_layout.addWidget(self.check_run_code)
+
 
 
         # 截图区域配置
@@ -202,6 +262,11 @@ class ImageSettingsWidget(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
+        self.btn_open_code_editor=QPushButton("编辑代码")
+        self.btn_open_code_editor.setFixedWidth(100)
+        self.btn_open_code_editor.clicked.connect(self.show_code_editor)
+        btn_layout.addWidget(self.btn_open_code_editor)
+        
         self.insert_after_btn = QPushButton("向后插入")
         self.insert_after_btn.setFixedWidth(100)
         btn_layout.addWidget(self.insert_after_btn)
@@ -221,6 +286,23 @@ class ImageSettingsWidget(QWidget):
         line.setStyleSheet("background-color: gray;")
         main_layout.addWidget(line)
 
+    def show_code_editor(self):
+        """显示代码编辑器窗口，编辑完后把代码存入code属性"""
+        editor = CodeEditorWindow(self)
+        editor.set_code(self.code)  # 可选：设置初始代码
+        if editor.exec() == QDialog.DialogCode.Accepted:
+            code = editor.get_code()
+            self.code=code
+            print("编辑的代码已记录，别忘了保存配置")
+            
+            
+
+    def update_index(self, new_index: int):
+        """更新索引并刷新显示"""
+        self.index = new_index
+        self.index_label.setText(f"配置项 {self.index + 1}")
+
+
     def on_click_input_toggled(self, checked):
         """当“点击后输入”复选框状态改变时，显示或隐藏输入框"""
         self.click_input_edit.setVisible(checked)
@@ -237,6 +319,7 @@ class ImageSettingsWidget(QWidget):
             self.image_path_edit.setText(path)
 
     def get_data(self):
+        """从配置项ui中获取配置"""
         return {
             "template_path": self.image_path_edit.text(),
             "tolerance": self.tolerance_group.value,
@@ -248,7 +331,8 @@ class ImageSettingsWidget(QWidget):
             "check_enabled": self.check_template_check.isChecked(),
             "click_input_enabled": self.check_click_input.isChecked(),
             "click_input": self.click_input_edit.text() if self.check_click_input.isChecked() else "",
-            "check_offset_enabled":self.check_offset_enabled.isCheckable(),
+            "check_offset_enabled":self.check_offset_enabled.isChecked(),
+            "check_run_code":self.check_run_code.isChecked(),
             "offset_x": self.offset_x_group.value if  self.offset_x_group.value else 0,
             "offset_y": self.offset_y_group.value if self.offset_y_group.value else 0,
             
@@ -257,7 +341,8 @@ class ImageSettingsWidget(QWidget):
                 self.y1_group.value,
                 self.x2_group.value,
                 self.y2_group.value
-            ]
+            ],
+            "code":self.code
         }
 
 from PyQt6.QtCore import pyqtSignal
@@ -301,9 +386,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("自定义识图插件")
-        self.setMinimumWidth(800)
+        self.setMinimumWidth(900)
         self.initial_height = 200
-        self.config_widgets = []
+        self.config_widgets:Optional[list[ImageSettingsWidget]] = []
         self.current_config_path = None
         self.temp_config_path = "temp_config.json"
 
@@ -428,7 +513,7 @@ class MainWindow(QMainWindow):
 
         # 创建 QTextEdit 用于显示长文本
         self.log_output = QTextEdit()
-        self.log_output.setText("欢迎使用自定义识图插件。\n你可以在网站：https://stareabyss.github.io/FAA-WebSite/guide/start/自定义识图脚本教程.html 中查看使用教程。\n\n注意：当你使用别人发给你的配置文件时，记得修改配置中的图片路径，保证其与你的电脑一致")
+        self.log_output.setText("欢迎使用自定义识图插件。\n你可以在网站：https://stareabyss.github.io/FAA-WebSite/guide/start/自定义识图脚本教程.html 中查看使用教程。\n\n注意：当你使用别人发给你的配置文件时，记得修改配置中的图片路径，保证其与你的电脑一致\n")
         self.log_output.setWordWrapMode(QTextOption.WrapMode.WordWrap)   # 启用自动换行
         self.log_output.setMinimumHeight(100)  # 设置最小高度
         self.log_output.setReadOnly(True)  # 设置为只读，防止编辑
@@ -546,14 +631,15 @@ class MainWindow(QMainWindow):
         )
 
     def add_config(self, index=None, scroll=True):
-        new_config = ImageSettingsWidget()
+        # 计算新配置项的索引
         
-        if index is None:
-            self.scroll_layout.addWidget(new_config)
-            self.config_widgets.append(new_config)
-        else:
-            self.scroll_layout.insertWidget(index, new_config)
-            self.config_widgets.insert(index, new_config)
+        if index is None: # 在末尾插入（python为检查index和数组长度是否相等，因此不会比append慢很多）
+            index = len(self.config_widgets)
+        
+        new_config = ImageSettingsWidget(index=index)
+        
+        self.scroll_layout.insertWidget(index, new_config)
+        self.config_widgets.insert(index, new_config)
         
         new_config.delete_btn.clicked.connect(
             lambda: self.remove_config(new_config)
@@ -580,10 +666,15 @@ class MainWindow(QMainWindow):
 
     def remove_config(self, widget):
         if widget in self.config_widgets:
+            # 获取被删除项的索引
+            index = self.config_widgets.index(widget)
+            # 删除控件
             self.scroll_layout.removeWidget(widget)
             self.config_widgets.remove(widget)
             widget.deleteLater()
-            
+            # 更新后续所有配置项的索引
+            for i in range(index, len(self.config_widgets)):
+                self.config_widgets[i].update_index(i)
             QApplication.processEvents()
             required_height = self.calculate_required_height()
             new_height = min(required_height, self.max_window_height)
@@ -648,12 +739,12 @@ class MainWindow(QMainWindow):
                 self.scroll_layout.removeWidget(widget)
                 widget.deleteLater()
             
-            for item in config_data:
-                new_config = ImageSettingsWidget()
+            for i,item in enumerate(config_data):
+                new_config = ImageSettingsWidget(i)
                 self._apply_config_data(new_config, item)
                 self.scroll_layout.addWidget(new_config)
                 self.config_widgets.append(new_config)
-                 
+                
                 new_config.delete_btn.clicked.connect(
                     lambda _, w=new_config: self.remove_config(w)
                 )
@@ -700,10 +791,14 @@ class MainWindow(QMainWindow):
         
         # 点击位置偏移相关配置
         widget.check_offset_enabled.setChecked(data.get("check_offset_enabled", False))
+        widget.check_run_code.setChecked(data.get("check_run_code",False))
         widget.offset_x_group.value = data.get("offset_x", 0)
         widget.offset_x_group.setVisible(widget.check_offset_enabled.isChecked())
         widget.offset_y_group.value = data.get("offset_y", 0)
         widget.offset_y_group.setVisible(widget.check_offset_enabled.isChecked())
+        
+        # 代码相关
+        widget.code=data.get("code", "")
 
 
 if __name__ == "__main__":

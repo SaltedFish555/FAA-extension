@@ -9,6 +9,7 @@
     "click_input_enabled": false,
     "click_input": "",
     "check_offset_enabled": true,
+    "check_run_code": true,
     "offset_x": 0,
     "offset_y": 0,
     "source_range": [
@@ -16,7 +17,8 @@
       0,
       2000,
       2000
-    ]
+    ],
+    "code": "11111111111"
   },
   {
     "template_path": "",
@@ -28,6 +30,7 @@
     "click_input_enabled": false,
     "click_input": "",
     "check_offset_enabled": true,
+    "check_run_code": true,
     "offset_x": 0,
     "offset_y": 0,
     "source_range": [
@@ -35,25 +38,7 @@
       0,
       2000,
       2000
-    ]
-  },
-  {
-    "template_path": "",
-    "tolerance": 0.95,
-    "interval": 0.1,
-    "timeout": 10.0,
-    "after_sleep": 0.5,
-    "check_enabled": false,
-    "click_input_enabled": false,
-    "click_input": "",
-    "check_offset_enabled": true,
-    "offset_x": 0,
-    "offset_y": 0,
-    "source_range": [
-      0,
-      0,
-      2000,
-      2000
-    ]
+    ],
+    "code": "22222222222222"
   }
 ]
