@@ -5,12 +5,11 @@ import cv2
 from numpy import uint8, frombuffer
 import numpy as np
 
-def input_str(handle,input:str,interval_time=0.05):
+def _input_str(handle,input:str,interval_time=0.05):
     """向窗口中输入字符串"""
     for ch in input:
         win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)
         sleep(0.05)
-
 
 
 
@@ -581,8 +580,10 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
         if event_stop and event_stop.is_set():
             return
         after_click_template=None
-        if step_config["check_enabled"]:
-            after_click_template=step_config["template_path"]
+        
+        # 点击后校验，暂时弃用
+        # if step_config["check_enabled"]:
+        #     after_click_template=step_config["template_path"]
         
         result=loop_match_p_in_w(
             source_handle=handle,
@@ -597,6 +598,7 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             offset_enabled=step_config["check_offset_enabled"],
             offset_x=step_config["offset_x"],
             offset_y=step_config["offset_y"],
+            click=step_config["need_click"],
             event_stop=event_stop,
             test=need_test
         )
@@ -607,8 +609,22 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
             print(f"识别图片【{step_config['template_path']}】失败")
         
         # 点击后输入内容
-        input_str(step_config["click_input"])
+        _input_str(handle,step_config["click_input"])
 
+        def click(x,y,test=False):
+            """给用户插入代码时用的点击函数"""
+            if test:
+                point = (x,y)
+                source_img = capture_image_png_once(handle)
+                cv2.circle(source_img, point, 5, (0,0,255), -1)
+                cv2.imshow("result",source_img)
+                cv2.waitKey(0)
+            do_left_mouse_click(handle, x, y)
+                
+        
+        def input_str(string:str):
+            """给用户插入代码时用的输入函数"""
+            _input_str(handle,string)
         
         # 最后运行代码
         if step_config["check_run_code"]:
@@ -652,6 +668,8 @@ class ExecuteThread(threading.Thread,QObject):
             print(f"第{i+1}次执行中")
             execute(self.window_name, self.configs_path,self.need_test,self._event_stop)
         self.message_signal.emit("成功", "脚本执行已完成")
+        
+
     
     def stop(self):
         """安全停止线程"""

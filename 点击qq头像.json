@@ -5,7 +5,7 @@
     "interval": 0.1,
     "timeout": 10.0,
     "after_sleep": 0.5,
-    "check_enabled": false,
+    "need_click": true,
     "click_input_enabled": false,
     "click_input": "",
     "check_offset_enabled": false,
@@ -18,6 +18,6 @@
       2000,
       2000
     ],
-    "code": "for ch in \"555555\":\r\n    win32gui.PostMessage(handle, win32con.WM_CHAR, ord(ch), 0)\r\n    sleep(0.05)"
+    "code": "click(200,200,True)"
   }
 ]

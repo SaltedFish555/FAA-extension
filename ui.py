@@ -9,9 +9,9 @@ from PyQt6.QtWidgets import (
     QMessageBox, QCheckBox, QLabel, QSpinBox, QTextEdit, QDialog,QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QSize, QTimer, QEvent, QObject, QTime
-from PyQt6.QtGui import QTextOption, QColor, QFont
+from PyQt6.QtGui import QTextOption, QColor, QFont, QIcon
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
-
+import saltedfish_rc
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -213,8 +213,8 @@ class ImageSettingsWidget(QWidget):
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(8)
 
-        self.check_template_check = QCheckBox("点击后校验")
-        action_layout.addWidget(self.check_template_check)
+        self.check_need_click = QCheckBox("识图后点击")
+        action_layout.addWidget(self.check_need_click)
 
         # 在点击后校验后增加一个选择框“点击后输入”
         self.check_click_input = QCheckBox("点击后输入")
@@ -354,7 +354,7 @@ class ImageSettingsWidget(QWidget):
             "after_sleep": self.sleep_group.value,
             
             
-            "check_enabled": self.check_template_check.isChecked(),
+            "need_click": self.check_need_click.isChecked(),
             "click_input_enabled": self.check_click_input.isChecked(),
             "click_input": self.click_input_edit.text() if self.check_click_input.isChecked() else "",
             "check_offset_enabled":self.check_offset_enabled.isChecked(),
@@ -412,6 +412,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FAA - 自定义识图插件")
+        self.setWindowIcon(QIcon(":/icons/saltedfish.ico"))
         self.setMinimumWidth(900)
         self.initial_height = 200
         self.config_widgets:Optional[list[ImageSettingsWidget]] = []
@@ -496,7 +497,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("美食大战老鼠")
+        self.window_name_edit.setText("789 | 美食大战老鼠")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")
@@ -795,7 +796,7 @@ class MainWindow(QMainWindow):
         widget.image_path_edit.setText(data.get("template_path", ""))
         
         # 复选框状态
-        widget.check_template_check.setChecked(data.get("check_enabled", False))
+        widget.check_need_click.setChecked(data.get("need_click", True))
         
         # 数值参数组
         widget.tolerance_group.value = data.get("tolerance", 0.95)
