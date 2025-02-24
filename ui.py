@@ -197,12 +197,12 @@ class ImageSettingsWidget(QWidget):
         self.interval_group = ParamGroupWidget("间隔:", 0.10, 2, "秒")
         param_layout.addWidget(self.interval_group)
 
-        self.timeout_group = ParamGroupWidget("超时:", 10.0, 2, "秒", maximum=9999)
+        self.timeout_group = ParamGroupWidget("超时:", 3.0, 2, "秒", maximum=9999)
         param_layout.addWidget(self.timeout_group)
 
         sleep_container = QHBoxLayout()
         sleep_container.addStretch()
-        self.sleep_group = ParamGroupWidget("休眠:", 0.50, 2, "秒", maximum=9999)
+        self.sleep_group = ParamGroupWidget("休眠:", 0.2, 2, "秒", maximum=9999)
         sleep_container.addWidget(self.sleep_group)
         param_layout.addLayout(sleep_container, stretch=1)
         
@@ -497,7 +497,7 @@ class MainWindow(QMainWindow):
         self.window_name_edit = QLineEdit()
         self.window_name_edit.setFixedWidth(150)
         self.window_name_edit.setPlaceholderText("输入窗口名（如：美食大战老鼠）")
-        self.window_name_edit.setText("789 | 美食大战老鼠")
+        self.window_name_edit.setText("美食大战老鼠")
         bottom_btn_layout.addWidget(self.window_name_edit)
 
         self.execute_btn = QPushButton("执行脚本")

@@ -4,6 +4,8 @@ import win32con, win32gui, win32api
 import cv2
 from numpy import uint8, frombuffer
 import numpy as np
+import os
+
 
 def _input_str(handle,input:str,interval_time=0.05):
     """向窗口中输入字符串"""
@@ -573,6 +575,9 @@ def load_config(config_path):
 def execute(window_name, configs_path,need_test=False,event_stop=None):
     """执行自动化脚本流程"""
     source_root_handle,handle=get_window_handle(window_name)
+    if not handle:
+        print("获取窗口句柄失败，请检查窗口名是否设置正确")
+        return
     configs=load_config(configs_path)
     for step_config in configs:
         # 获取当前步骤配置参数
@@ -584,6 +589,10 @@ def execute(window_name, configs_path,need_test=False,event_stop=None):
         # 点击后校验，暂时弃用
         # if step_config["check_enabled"]:
         #     after_click_template=step_config["template_path"]
+        
+        if not os.path.exists(step_config["template_path"]):
+            print(f"图片【{step_config["template_path"]}】不存在，请检查图片路径")
+            return
         
         result=loop_match_p_in_w(
             source_handle=handle,
@@ -661,6 +670,7 @@ class ExecuteThread(threading.Thread,QObject):
         self._event_stop=threading.Event() #标志位，用来安全中断线程
         
     def run(self):
+        start_time=time.time()
         for i in range(self.loop_times):
             if self._event_stop.is_set(): # 安全退出
                 self.message_signal.emit("失败", "脚本执行已被中断")
@@ -668,7 +678,8 @@ class ExecuteThread(threading.Thread,QObject):
             print(f"第{i+1}次执行中")
             execute(self.window_name, self.configs_path,self.need_test,self._event_stop)
         self.message_signal.emit("成功", "脚本执行已完成")
-        
+        end_time=time.time()
+        print(f"执行完毕，共花费 {end_time-start_time} 秒")
 
     
     def stop(self):

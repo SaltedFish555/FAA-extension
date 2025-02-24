@@ -18,6 +18,6 @@
       2000,
       2000
     ],
-    "code": "click(200,200,True)"
+    "code": "import requests\r\nre=requests.get(\"https://www.baidu.com/\")\r\nprint(re.text)"
   }
 ]
